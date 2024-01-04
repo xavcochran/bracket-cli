@@ -1,7 +1,10 @@
 mod args;
 
-use args::{ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, StopSubCommand};
+use args::{
+    ConfigSubCommand, ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, StopSubCommand,
+};
 
+use std::time::SystemTime;
 use aws_config;
 use aws_config::BehaviorVersion;
 use aws_sdk_ec2::{
@@ -10,10 +13,14 @@ use aws_sdk_ec2::{
 use aws_sdk_ec2instanceconnect::{
     Client as InstanceConnectClient, Error as InstanceConnectClientError,
 };
+use aws_sdk_neptune::Client as NeptuneClient;
+use aws_sdk_cloudwatch::{Client as CloudWatchClient, types::Statistic};
+
 use chrono::format::strftime::StrftimeItems;
-use chrono::Utc;
+use chrono::{self, Utc};
 use clap::Parser;
 use dirs;
+use regex::Regex;
 use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
@@ -51,10 +58,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match args.entity_type {
         EntityType::Connect(connect_command) => {
             if !is_configured() {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "",
-                )) as Box<dyn Error>);
+                return Err(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "")) as Box<dyn Error>
+                );
             }
             match connect_command.command {
                 ConnectSubCommand::Ec2(ec2_connect_command) => {
@@ -350,10 +356,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         EntityType::Create(create_command) => {
             if !is_configured() {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "",
-                )) as Box<dyn Error>);
+                return Err(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "")) as Box<dyn Error>
+                );
             }
             match create_command.command {
                 CreateSubCommand::NewEc2 => {
@@ -366,14 +371,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         EntityType::Stop(stop_command) => {
             if !is_configured() {
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "",
-                )) as Box<dyn Error>);
+                return Err(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "")) as Box<dyn Error>
+                );
             }
             match stop_command.command {
                 StopSubCommand::Ec2(ec2_stop_command) => {
-                    
                     // get ec2 public dns address and id
                     // stop ec2
                     // remove ssh config entry
@@ -426,19 +429,272 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         EntityType::Config(config_command) => {
-            // if !is_configured() {
-            //     return Err(Box::new(std::io::Error::new(
-            //         std::io::ErrorKind::Other,
-            //         "",
-            //     )) as Box<dyn Error>);
-            // }
-            println!("Config command: {:?}", config_command);
+            match config_command.command {
+                ConfigSubCommand::Aws => {
+                    let command = "aws configure";
+
+                    let child = Command::new("bash")
+                        .arg("-c")
+                        .arg(&command)
+                        .spawn()
+                        .expect("Failed to execute command");
+
+                    let output = child.wait_with_output()?;
+
+                    if !output.status.success() {
+                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, ""))
+                            as Box<dyn Error>);
+                    }
+                }
+                ConfigSubCommand::Git(git_config_subcommand) => {
+                    match git_config_subcommand.command {
+                        // ...
+                        args::GitConfigCommand::Email(mut email) => {
+                            let email_regex =
+                                Regex::new(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+                                    .unwrap();
+
+                            loop {
+                                if email_regex.is_match(&email.email) {
+                                    let command = format!("gh config set git_protocol ssh && git config --global user.email \"{}\"", email.email);
+
+                                    let child = Command::new("bash")
+                                        .arg("-c")
+                                        .arg(&command)
+                                        .spawn()
+                                        .expect("Failed to execute command");
+
+                                    let output = child.wait_with_output()?;
+
+                                    if output.status.success() {
+                                        break;
+                                    } else {
+                                        return Err(Box::new(std::io::Error::new(
+                                            std::io::ErrorKind::Other,
+                                            "Failed to set email",
+                                        ))
+                                            as Box<dyn Error>);
+                                    }
+                                } else {
+                                    eprintln!("Invalid email format. Please try again.");
+                                }
+
+                                print!("Enter a valid email: ");
+                                io::stdout().flush()?;
+
+                                email.email.clear();
+                                io::stdin().read_line(&mut email.email)?;
+                                email.email = email.email.trim().to_string();
+                            }
+                        }
+
+                        args::GitConfigCommand::Name(name) => {
+                            let command = format!("gh config set git_protocol ssh && git config --global user.name \"{}\"", name.name);
+
+                            let child = Command::new("bash")
+                                .arg("-c")
+                                .arg(&command)
+                                .spawn()
+                                .expect("Failed to execute command");
+
+                            let output = child.wait_with_output()?;
+
+                            if !output.status.success() {
+                                return Err(Box::new(std::io::Error::new(
+                                    std::io::ErrorKind::Other,
+                                    "",
+                                )) as Box<dyn Error>);
+                            }
+                        }
+                        args::GitConfigCommand::Login => {
+                            let command = "gh auth login";
+
+                            let child = Command::new("bash")
+                                .arg("-c")
+                                .arg(&command)
+                                .spawn()
+                                .expect("Failed to execute command");
+
+                            let output = child.wait_with_output()?;
+
+                            if !output.status.success() {
+                                return Err(Box::new(std::io::Error::new(
+                                    std::io::ErrorKind::Other,
+                                    "",
+                                )) as Box<dyn Error>);
+                            }
+                        }
+                    }
+                }
+            }
         }
+        EntityType::List(list_command) => match list_command.command {
+            args::ListSubCommand::Ec2 => {
+                let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+                let client = EC2Client::new(&config);
+
+                let resp = match client.describe_instances().send().await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        eprintln!("Failed to describe instances: {}", e);
+                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
+                            as Box<dyn Error>);
+                    }
+                };
+
+                let mut instances = Vec::new();
+
+                for reservation in resp.reservations() {
+                    for instance in reservation.instances() {
+                        let instance_id = instance.instance_id().unwrap_or_default().to_string();
+                        let public_dns = instance.public_dns_name().unwrap_or_default().to_string();
+                        let is_running = instance
+                            .state()
+                            .and_then(|s| s.name())
+                            .map_or(false, |state_name| {
+                                *state_name == InstanceStateName::Running
+                            });
+                        let name = instance
+                            .tags()
+                            .iter()
+                            .find(|tag| tag.key().unwrap_or_default() == "Name")
+                            .map_or("".to_string(), |tag| {
+                                tag.value().unwrap_or_default().to_string()
+                            });
+                        instances.push((name, is_running, instance_id, public_dns));
+                    }
+                }
+
+                if instances.is_empty() {
+                    println!("No instances found");
+                } else {
+                    println!(" ");
+                    let title = "EC2 INSTANCE INFORMATION";
+                    let separator = "=".repeat(78);
+                    let name = "\x1b[1m".to_owned() + title + "\x1b[0m";
+                    let lines = "\x1b[1m=\x1b[0m".repeat(70);
+                    
+                    println!("{:^1$}", name, separator.len());
+                    println!("{}", lines);
+                    println!("{}", " ");
+
+                    println!(
+                        "{:<20} {:<10} {:<20} {:<20}",
+                        "Name", "Status", "Instance ID", "Public DNS"
+                    );
+                    println!("{}", "-".repeat(70));
+                    for (name, is_running, instance_id, public_dns) in instances {
+                        println!(
+                            "{:<20} {:<10} {:<20} {:<20}",
+                            name,
+                            if is_running { "running" } else { "stopped" },
+                            instance_id,
+                            public_dns
+                        );
+                    }
+                }
+            }
+            args::ListSubCommand::Neptune => {
+                let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+                let client = NeptuneClient::new(&config);
+                let cloudwatch_client = CloudWatchClient::new(&config);
+                // Describe Neptune clusters
+                let clusters = match client.describe_db_clusters().send().await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        eprintln!("Failed to describe clusters: {}", e);
+                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn Error>);
+                    }
+                }; 
+
+                println!("{}", " ");
+                let title = "NEPTUNE CLUSTER INFORMATION";
+                let separator = "=".repeat(63);
+                let lines = "\x1b[1m=\x1b[0m".repeat(55);
+                println!("{:^1$}", format!("\x1b[1m{}\x1b[0m", title), separator.len());
+                println!("{}", lines);
+                println!("{}", " ");
+                for cluster in clusters.db_clusters() {
+                    
+                    // Get CPU Utilization from CloudWatch
+                    let metric_name = "CPUUtilization";
+                    let namespace = "AWS/Neptune";
+
+                    let chrono_start_time = chrono::Utc::now() - chrono::Duration::hours(1);
+                    let chrono_end_time = chrono::Utc::now();
+
+                    let start_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_start_time));
+                    let end_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_end_time));
+
+                    let cpu_util_resp = cloudwatch_client.get_metric_statistics()
+                        .namespace(namespace)
+                        .metric_name(metric_name)
+                        .start_time(start_time) // Last 1 hour
+                        .end_time(end_time)
+                        .period(300) // 5 minutes periods
+                        .statistics(Statistic::Average)
+                        .dimensions(
+                            aws_sdk_cloudwatch::types::Dimension::builder()
+                                .name("DBClusterIdentifier")
+                                .value(cluster.db_cluster_identifier().unwrap_or_default())
+                                .build()
+                        )
+                        .send()
+                        .await;
+                    
+                    let mut cpu_util: Option<(String, f64)> = None;
+                    if let Ok(stats) = cpu_util_resp {
+                        for point in stats.datapoints() {
+                            match (point.timestamp(), point.average()) {
+                                (Some(timestamp), Some(average)) => {
+                                    let timestamp_str = timestamp.to_string();
+                                    match chrono::DateTime::parse_from_rfc3339(&timestamp_str) {
+                                        Ok(datetime) => {
+                                            let formatted_timestamp = datetime.format("%I:%M%p %d/%m/%Y").to_string();
+                                            cpu_util = Some((formatted_timestamp, average));
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Failed to parse timestamp: {}", e);
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    println!("Missing data");
+                                }
+                            }
+                        }
+                    } else {
+                        eprintln!("Failed to get CPU utilization metrics.");
+                    }
+                    let cluster_name = cluster.db_cluster_identifier().unwrap_or_default();
+                    let status = cluster.status().unwrap_or_default();
+                    let endpoint = cluster.endpoint().unwrap_or_default();
+
+                    let instance_count = cluster.db_cluster_members().len();
+
+                    // Construct the AWS console link for the cluster
+                    let cluster_link = format!("https://console.aws.amazon.com/neptune/home?region={}#database:id={};is-cluster=true", 
+                    config.region().unwrap().as_ref(), 
+                    cluster.db_cluster_identifier().unwrap_or_default());
+                    println!("\x1b[1m{} {}\x1b[0m", "Cluster:", cluster_name);
+                    println!("{}", "\x1b[1m-\x1b[0m".repeat(55));
+                    println!("\x1b[1m{:<16}\x1b[0m {}", "Instance Count:", instance_count);
+                    println!("\x1b[1m{:<16}\x1b[0m {}", "Status:", status);
+                    println!("\x1b[1m{:<16}\x1b[0m {}", "CPU Utilisation:", match cpu_util {
+                        Some((timestamp, average)) => format!("{:.2}% at {}", average, timestamp),
+                        None => "N/A".to_string(),
+                    });
+                    println!("\x1b[1m{:<16}\x1b[0m {}", "Endpoint:", endpoint);
+                    println!("\x1b[1m{:<16}\x1b[0m {}", "Cluster Link:", cluster_link);
+                    println!("{}", " ");
+                    
+                }
+            }
+        },
     }
 
     Ok(())
 }
-
 async fn connect_to_instance(
     instance_id: String,
     ssh_public_key: String,
@@ -504,8 +760,10 @@ pub fn is_configured() -> bool {
         );
 
     if !output.status.success() {
-        println!("AWS credentials are not configured, please install the AWS CLI or run 'aws configure'");
-        return false
+        println!(
+            "AWS credentials are not configured, please install the AWS CLI or run 'aws configure'"
+        );
+        return false;
     }
 
     // check if git credentials are configured
@@ -519,10 +777,9 @@ pub fn is_configured() -> bool {
 
     if !output.status.success() {
         println!("Github credentials are not configured, please install the Github CLI or run 'gh auth login'");
-        return false
+        return false;
     }
 
-   true
+    true
 }
-
 
