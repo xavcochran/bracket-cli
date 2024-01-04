@@ -1,6 +1,6 @@
 mod args;
 
-use args::{ConnectSubCommand, EC2connector, EntityType, StopSubCommand};
+use args::{ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, StopSubCommand};
 
 use aws_config;
 use aws_config::BehaviorVersion;
@@ -50,6 +50,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let args = EC2connector::parse();
     match args.entity_type {
         EntityType::Connect(connect_command) => {
+            if !is_configured() {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "",
+                )) as Box<dyn Error>);
+            }
             match connect_command.command {
                 ConnectSubCommand::Ec2(ec2_connect_command) => {
                     // run ssh keygen command
@@ -343,6 +349,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         EntityType::Create(create_command) => {
+            if !is_configured() {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "",
+                )) as Box<dyn Error>);
+            }
             match create_command.command {
                 CreateSubCommand::NewEc2 => {
                     // prompt user for name, size (small, medium, large), git repo and branch
@@ -353,8 +365,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         EntityType::Stop(stop_command) => {
+            if !is_configured() {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "",
+                )) as Box<dyn Error>);
+            }
             match stop_command.command {
                 StopSubCommand::Ec2(ec2_stop_command) => {
+                    
                     // get ec2 public dns address and id
                     // stop ec2
                     // remove ssh config entry
@@ -365,16 +384,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 let config =
                                     aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
                                 let client = EC2Client::new(&config);
-    
+
                                 let stop_resp = client
                                     .stop_instances()
                                     .instance_ids(instance_id.clone())
                                     .send()
                                     .await;
-    
+
                                 match stop_resp {
                                     Ok(_) => {
-                                        println!("Successfully sent stop request for instance {}", ec2_stop_command.ec2_name);
+                                        println!(
+                                            "Successfully sent stop request for instance {}",
+                                            ec2_stop_command.ec2_name
+                                        );
                                     }
                                     Err(e) => {
                                         eprintln!("Failed to stop instance: {}", e);
@@ -385,8 +407,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                             as Box<dyn Error>);
                                     }
                                 }
-                            }
-                            else {
+                            } else {
                                 println!("Instance is not in a state to be stopped.");
                             }
                         }
@@ -405,6 +426,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         EntityType::Config(config_command) => {
+            // if !is_configured() {
+            //     return Err(Box::new(std::io::Error::new(
+            //         std::io::ErrorKind::Other,
+            //         "",
+            //     )) as Box<dyn Error>);
+            // }
             println!("Config command: {:?}", config_command);
         }
     }
@@ -466,16 +493,19 @@ async fn get_instance_info(instance_name: &str) -> Result<(String, String, bool)
 
 pub fn is_configured() -> bool {
     // check if aws credentials are configured
-    let command = format!("aws configure get aws_access_key_id");
+    let command = format!("aws configure get aws_access_key_id && aws configure get region");
 
     let output = Command::new("bash")
         .arg("-c")
         .arg(&command)
         .output()
-        .expect("Failed to execute command");
+        .expect(
+            "AWS credentials are not configured, please install the AWS CLI or run 'aws configure'",
+        );
 
     if !output.status.success() {
-        return false;
+        println!("AWS credentials are not configured, please install the AWS CLI or run 'aws configure'");
+        return false
     }
 
     // check if git credentials are configured
@@ -485,11 +515,14 @@ pub fn is_configured() -> bool {
         .arg("-c")
         .arg(&command)
         .output()
-        .expect("Failed to execute command");
+        .expect("Github credentials are not configured, please install the Github CLI or run 'gh auth login'");
 
     if !output.status.success() {
-        return false;
+        println!("Github credentials are not configured, please install the Github CLI or run 'gh auth login'");
+        return false
     }
 
-    true
+   true
 }
+
+
