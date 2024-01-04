@@ -23,9 +23,9 @@ jobs:
         profile: minimal
         toolchain: stable
         override: true
-
+      
     - name: Build
-      run: cargo build --release --verbose
+      run: cd main && cargo build --release --verbose
 
     # - name: Run tests
     #   run: cargo test --verbose
@@ -34,4 +34,4 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: cookly-linux
-        path: target/release/cookly
+        path: main/target/release/cookly

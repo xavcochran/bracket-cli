@@ -6,7 +6,8 @@ The Cookly CLI tool helps to automate the process of creating infrastucture, con
 
 ## Installation
 
-#### Firstly Install the Github CLI Tool: [HERE](https://cli.github.com)**
+### Firstly Install the Github CLI Tool **
+For more nformation
 
 **On Mac**
 Install via:
@@ -27,7 +28,7 @@ curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo 
 ```
 
 
-**Once it has been installed successfully** 
+### Once it has been installed successfully
 Run through authenticating the Github CLI with your github account. 
 To do this run:
 
@@ -43,6 +44,16 @@ gh auth login
  A: Login with a web browser
 ```
  
-**Run the following in your terminal to install the cookly-cli**
+### Run the following in your terminal to install the cookly-cli
 
-gh release download v1.0.0 -R bracketengineering/cookly-cli -D ./releases/
+**On Mac**
+```bash
+sudo gh release download --clobber -p '*_macos' -R bracketengineering/cookly-cli -O /usr/local/bin/cookly && sudo chmod +x /usr/local/bin/cookly
+```
+
+**On Linux**
+```bash
+sudo gh release download --clobber -p '*_linux' -R bracketengineering/cookly-cli -O /usr/local/bin/cookly && sudo chmod +x /usr/local/bin/cookly
+```
+
+
