@@ -1,5 +1,5 @@
 [package]
-name = "cookly-cli"
+name = "cookly"
 version = "0.1.0"
 edition = "2021"
 
