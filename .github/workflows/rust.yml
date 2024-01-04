@@ -23,7 +23,10 @@ jobs:
         profile: minimal
         toolchain: stable
         override: true
-
+        
+    - name: Enter main
+      run: cd main
+      
     - name: Build
       run: cargo build --release --verbose
 
