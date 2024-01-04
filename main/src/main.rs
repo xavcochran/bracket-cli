@@ -343,7 +343,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         EntityType::Create(create_command) => {
-            println!("Create command: {:?}", create_command);
+            match create_command.command {
+                CreateSubCommand::NewEc2 => {
+                    // prompt user for name, size (small, medium, large), git repo and branch
+                }
+                CreateSubCommand::CopyOf(create_copy_of_command) => {
+                    println!("Creating copy of ec2: {:?}", create_copy_of_command);
+                }
+            }
         }
         EntityType::Stop(stop_command) => {
             match stop_command.command {
@@ -455,4 +462,34 @@ async fn get_instance_info(instance_name: &str) -> Result<(String, String, bool)
     }
 
     Err("No matching instances found".to_string())
+}
+
+pub fn is_configured() -> bool {
+    // check if aws credentials are configured
+    let command = format!("aws configure get aws_access_key_id");
+
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(&command)
+        .output()
+        .expect("Failed to execute command");
+
+    if !output.status.success() {
+        return false;
+    }
+
+    // check if git credentials are configured
+    let command = format!("gh auth status");
+
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(&command)
+        .output()
+        .expect("Failed to execute command");
+
+    if !output.status.success() {
+        return false;
+    }
+
+    true
 }

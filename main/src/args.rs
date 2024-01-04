@@ -57,7 +57,7 @@ pub struct CreateCommand {
 #[derive(Debug, Subcommand)]
 pub enum CreateSubCommand {
   /// Takes you through the process of creating a new EC2 instance.
-  New,
+  NewEc2,
 
   /// Creates a copy of an existing EC2 instance.
   CopyOf(CreateCopyOfCommand),
