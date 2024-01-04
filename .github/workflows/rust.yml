@@ -35,4 +35,3 @@ jobs:
       with:
         name: cookly-linux
         path: target/release/cookly-linux
-Ï
