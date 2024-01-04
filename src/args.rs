@@ -21,7 +21,7 @@ pub enum EntityType {
   Create(CreateCommand),
 
   /// Closes the connection to the EC2 instance and shuts it down.
-  Exit,
+  Stop(StopCommand),
 
   /// Configures your credentials to be able to connect to our EC2s and use them effectively. 
   Config(ConfigCommand),
@@ -102,4 +102,30 @@ pub struct GitConfigCommand {
 
   #[clap(short, long)]
   pub git_email: String,
+}
+
+
+#[derive(Debug, Args)]
+pub struct StopCommand {
+  #[clap(subcommand)]
+  pub command: StopSubCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StopSubCommand {
+  /// Stops the EC2 instance and closes the connection.
+  Ec2(Ec2StopCommand),
+
+  /// Stops the Neptune instance and closes the connection.
+  Neptune(NeptuneStopCommand)
+}
+
+#[derive(Debug, Args)]
+pub struct Ec2StopCommand {
+  pub ec2_name: String,
+}
+
+#[derive(Debug, Args)]
+pub struct NeptuneStopCommand {
+  pub neptune_name: String,
 }
