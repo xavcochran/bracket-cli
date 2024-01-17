@@ -14,7 +14,7 @@ use aws_sdk_ec2instanceconnect::{
     Client as InstanceConnectClient, Error as InstanceConnectClientError,
 };
 use aws_sdk_neptune::Client as NeptuneClient;
-use aws_sdk_cloudwatch::{Client as CloudWatchClient, types::Statistic};
+use aws_sdk_cloudwatch::{Client as CloudWatchClient, types::Statistic, types::Dimension};
 
 use chrono::format::strftime::StrftimeItems;
 use chrono::{self, Utc};
@@ -25,6 +25,8 @@ use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::Command;
+use dialoguer::{theme::ColorfulTheme, Select};
+use tokio::task;
 
 #[::tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -315,7 +317,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             }
 
                             let command = format!(
-                        "code --folder-uri vscode-remote://ssh-remote+{}/home/ec2-user/cookly/",
+                        "code --folder-uri vscode-remote://ssh-remote+{}/home/ec2-user/",
                         host_name
                     );
 
@@ -363,6 +365,39 @@ async fn main() -> Result<(), Box<dyn Error>> {
             match create_command.command {
                 CreateSubCommand::NewEc2 => {
                     // prompt user for name, size (small, medium, large), git repo and branch
+                    let mut name = String::new();
+                    let mut size = String::new();
+                    let mut git_repo = String::new();
+                    let mut branch = String::new();
+
+                    print!("Enter the name of the EC2 instance: ");
+                    io::stdout().flush().unwrap(); // Flush stdout to ensure the prompt is printed before read_line
+                    io::stdin().read_line(&mut name).unwrap();
+                    name = name.trim().to_string();
+
+
+                    let repos = task::spawn_blocking(|| get_github_repos()).await.unwrap();
+                    let repo_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select a GitHub repo")
+                        .default(0)
+                        .items(&repos[..])
+                        .interact()
+                        .unwrap();
+
+                    let selected_repo = repos[repo_selection].clone();
+
+
+                    let branches = task::spawn_blocking(|| get_github_branches(selected_repo)).await.unwrap();
+                    let branch_selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Select a branch")
+                        .default(0)
+                        .items(&branches[..])
+                        .interact()
+                        .unwrap();
+
+                    let selected_branch = branches[branch_selection].clone();
+
+                
                 }
                 CreateSubCommand::CopyOf(create_copy_of_command) => {
                     println!("Creating copy of ec2: {:?}", create_copy_of_command);
@@ -532,6 +567,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             args::ListSubCommand::Ec2 => {
                 let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
                 let client = EC2Client::new(&config);
+                let cw_client = CloudWatchClient::new(&config);
 
                 let resp = match client.describe_instances().send().await {
                     Ok(resp) => resp,
@@ -561,7 +597,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             .map_or("".to_string(), |tag| {
                                 tag.value().unwrap_or_default().to_string()
                             });
-                        instances.push((name, is_running, instance_id, public_dns));
+                            let cpu_utilization = get_cpu_utilization(&cw_client, &instance_id).await.unwrap_or(0.0);
+                            instances.push((name, is_running, instance_id, public_dns, cpu_utilization));
+        
+
                     }
                 }
 
@@ -570,30 +609,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 } else {
                     println!(" ");
                     let title = "EC2 INSTANCE INFORMATION";
-                    let separator = "=".repeat(78);
+                    let separator = "=".repeat(104);
                     let name = "\x1b[1m".to_owned() + title + "\x1b[0m";
-                    let lines = "\x1b[1m=\x1b[0m".repeat(70);
+                    let lines = "\x1b[1m=\x1b[0m".repeat(90);
                     
                     println!("{:^1$}", name, separator.len());
                     println!("{}", lines);
                     println!("{}", " ");
 
                     println!(
-                        "{:<20} {:<10} {:<20} {:<20}",
-                        "Name", "Status", "Instance ID", "Public DNS"
+                        "{:<20} {:<10} {:<20} {:<10} {:<20}",
+                        "Name", "Status", "Instance ID", "CPU Utilization", "Public DNS",
                     );
-                    println!("{}", "-".repeat(70));
-                    for (name, is_running, instance_id, public_dns) in instances {
+                    println!("{}", "-".repeat(90));
+                    for (name, is_running, instance_id, public_dns, cpu_utilization) in instances {
                         println!(
-                            "{:<20} {:<10} {:<20} {:<20}",
+                            "{:<20} {:<10} {:<20} {:<10} {:<20} ",
                             name,
                             if is_running { "running" } else { "stopped" },
                             instance_id,
-                            public_dns
+                            format!("{:.2}%", cpu_utilization),
+                            public_dns,
                         );
                     }
                 }
             }
+
             args::ListSubCommand::Neptune => {
                 let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
                 let client = NeptuneClient::new(&config);
@@ -620,7 +661,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     let metric_name = "CPUUtilization";
                     let namespace = "AWS/Neptune";
 
-                    let chrono_start_time = chrono::Utc::now() - chrono::Duration::hours(1);
+                    let chrono_start_time = chrono::Utc::now() - chrono::Duration::minutes(5);
                     let chrono_end_time = chrono::Utc::now();
 
                     let start_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_start_time));
@@ -713,6 +754,36 @@ async fn connect_to_instance(
     Ok(())
 }
 
+async fn get_cpu_utilization(cw_client: &CloudWatchClient, instance_id: &str) -> Result<f64, Box<dyn Error>> {
+    let dimension = Dimension::builder()
+        .name("InstanceId")
+        .value(instance_id)
+        .build();
+
+    let statistic = Statistic::Average;
+
+    let chrono_start_time = chrono::Utc::now() - chrono::Duration::minutes(5);
+    let chrono_end_time = chrono::Utc::now();
+
+    let start_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_start_time));
+    let end_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_end_time));
+
+    let resp = cw_client.get_metric_statistics()
+        .namespace("AWS/EC2")
+        .metric_name("CPUUtilization")
+        .dimensions(dimension)
+        .start_time(start_time)
+        .end_time(end_time)
+        .period(300)
+        .statistics(statistic)
+        .send()
+        .await?;
+
+    let average_cpu_utilization = resp.datapoints().get(0).and_then(|dp| dp.average()).unwrap_or(0.0);
+
+    Ok(average_cpu_utilization)
+}
+
 // Returns instance id, public dns, and a boolean indicating if the instance is running
 async fn get_instance_info(instance_name: &str) -> Result<(String, String, bool), String> {
     let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
@@ -783,3 +854,26 @@ pub fn is_configured() -> bool {
     true
 }
 
+
+fn get_github_repos() -> Vec<String> {
+    let output = Command::new("gh")
+        .arg("repo")
+        .arg("list")
+        .output()
+        .expect("Failed to list GitHub repos");
+
+    let repos = String::from_utf8(output.stdout).unwrap();
+    repos.lines().map(|line| line.split('\t').next().unwrap().to_string()).collect()
+}
+
+fn get_github_branches(repo: String) -> Vec<String> {
+    let output = Command::new("gh")
+        .arg("api")
+        .arg(format!("/repos/{}/branches", repo))
+        .output()
+        .expect("Failed to list GitHub branches");
+
+    let branches = String::from_utf8(output.stdout).unwrap();
+    let branches: Vec<serde_json::Value> = serde_json::from_str(&branches).unwrap();
+    branches.into_iter().map(|branch| branch["name"].as_str().unwrap().to_string()).collect()
+}
