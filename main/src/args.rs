@@ -1,7 +1,9 @@
 use clap::{Args, Parser, Subcommand};
 
+// pub mod args;
+
 #[derive(Debug, Parser)]
-#[clap(name = "My CLI Program", version = "1.0", author = "Your Name. <")]
+#[clap(name = "AWS Connector", version = "1.0", author = "Your Name. <")]
 
 pub struct EC2connector {
     #[clap(subcommand)]
@@ -10,6 +12,9 @@ pub struct EC2connector {
 
 #[derive(Debug, Subcommand)]
 pub enum EntityType {
+    // /// Updates the cookly cli 
+    // Update,
+
     /// Connects to existing EC2. Automatically starts one if none are running.
     Connect(ConnectCommand),
 

@@ -20,6 +20,7 @@ brew install gh
 Install via:
 ```bash
 type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
+
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
 && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
 && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
@@ -55,5 +56,17 @@ sudo gh release download --clobber -p '*_macos' -R bracketengineering/cookly-cli
 ```bash
 sudo gh release download --clobber -p '*_linux' -R bracketengineering/cookly-cli -O /usr/local/bin/cookly && sudo chmod +x /usr/local/bin/cookly
 ```
+
+**For public (MAC/LINUX)**
+```bash
+curl -sSL https://raw.githubusercontent.com/yourusername/bracket-aws-helper/install.sh | bash
+```
+
+**For public (WINDOWS)**
+```bash
+powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/yourusername/your-repo/main/install.bat -OutFile install.bat"
+install.bat
+```
+
 
 

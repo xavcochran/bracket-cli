@@ -8,7 +8,7 @@ use std::time::SystemTime;
 use aws_config;
 use aws_config::BehaviorVersion;
 use aws_sdk_ec2::{
-    types::Filter, types::InstanceStateName, types::SummaryStatus, Client as EC2Client,
+    types::Filter, types::InstanceStateName, Client as EC2Client,
 };
 use aws_sdk_ec2instanceconnect::{
     Client as InstanceConnectClient, Error as InstanceConnectClientError,
@@ -16,17 +16,20 @@ use aws_sdk_ec2instanceconnect::{
 use aws_sdk_neptune::Client as NeptuneClient;
 use aws_sdk_cloudwatch::{Client as CloudWatchClient, types::Statistic, types::Dimension};
 
-use chrono::format::strftime::StrftimeItems;
-use chrono::{self, Utc};
+
+use chrono::{self};
 use clap::Parser;
-use dirs;
+
 use regex::Regex;
 use std::error::Error;
-use std::fs::{self, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+
+use std::io::{self, Write};
 use std::process::Command;
 use dialoguer::{theme::ColorfulTheme, Select};
 use tokio::task;
+mod ec2;
+mod utils;
+mod neptune;
 
 #[::tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -66,289 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
             match connect_command.command {
                 ConnectSubCommand::Ec2(ec2_connect_command) => {
-                    // run ssh keygen command
-                    let file_name = "key_rsa"; // replace with your desired file name
-                    let home_dir = dirs::home_dir().expect("Could not get home directory");
-                    let ec2_connector_dir = home_dir.join("ec2_connector");
-
-                    // Create the directory if it doesn't exist
-                    fs::create_dir_all(&ec2_connector_dir).expect("Failed to create directory");
-
-                    let output_path = ec2_connector_dir.join(file_name);
-
-                    let _ssh_key = Command::new("bash")
-                        .arg("-c")
-                        .arg(format!(
-                            "echo y | ssh-keygen -t rsa -N '' -f {}",
-                            output_path.to_str().expect("Failed to convert path to str")
-                        ))
-                        .output()
-                        .expect("Failed to generate SSH key pair");
-
-                    let file_name = "key_rsa.pub"; // replace with your desired file name
-                    let home_dir = dirs::home_dir().expect("Could not get home directory");
-                    let file_path = home_dir.join("ec2_connector").join(file_name);
-                    let public_key =
-                        fs::read_to_string(file_path).expect("Failed to read SSH public key file");
-                    // get ec2 public dns address and id
-
-                    match get_instance_info(&ec2_connect_command.ec2_name).await {
-                        Ok((instance_id, public_dns, is_running)) => {
-                            let mut public_dns = public_dns;
-                            if is_running {
-                                println!("Instance is already running, connecting...");
-                                connect_to_instance(instance_id.clone(), public_key.clone())
-                                    .await?;
-                            } else {
-                                println!("Instance not running...");
-                                let mut input = String::new();
-                                print!("Do you want to start the instance? (y/n):");
-                                io::stdout().flush()?; // Make sure the prompt is immediately displayed
-                                io::stdin().read_line(&mut input)?;
-
-                                let input = input.trim(); // Remove trailing newline
-
-                                match input {
-                                    "y" => {
-                                        println!("Starting instance...");
-                                        let config = aws_config::load_defaults(
-                                            BehaviorVersion::v2023_11_09(),
-                                        )
-                                        .await;
-                                        let client = EC2Client::new(&config);
-
-                                        let start_resp = client
-                                            .start_instances()
-                                            .instance_ids(instance_id.clone())
-                                            .send()
-                                            .await;
-
-                                        match start_resp {
-                                            Ok(_) => {
-                                                println!("Waiting for instance to be in running state. May take a few minutes...");
-
-                                                let spinner_chars = vec!['|', '/', '-', '\\'];
-                                                let mut spinner_index = 0;
-
-                                                // Polling loop
-                                                loop {
-                                                    let check_resp = client
-                                                        .describe_instance_status()
-                                                        .instance_ids(instance_id.clone())
-                                                        .include_all_instances(true)
-                                                        .send()
-                                                        .await;
-
-                                                    if let Ok(status_resp) = check_resp {
-                                                        let instance_statuses =
-                                                            status_resp.instance_statuses();
-
-                                                        if let Some(instance_status) =
-                                                            instance_statuses.first()
-                                                        {
-                                                            let is_running = matches!(
-                                                                instance_status
-                                                                    .instance_state()
-                                                                    .and_then(|s| s.name()),
-                                                                Some(InstanceStateName::Running)
-                                                            );
-
-                                                            let system_status_ok = matches!(
-                                                                instance_status
-                                                                    .system_status()
-                                                                    .and_then(|s| s.status()),
-                                                                Some(SummaryStatus::Ok)
-                                                            );
-
-                                                            let instance_status_ok = matches!(
-                                                                instance_status
-                                                                    .instance_status()
-                                                                    .and_then(|s| s.status()),
-                                                                Some(SummaryStatus::Ok)
-                                                            );
-
-                                                            if is_running
-                                                                && system_status_ok
-                                                                && instance_status_ok
-                                                            {
-                                                                println!("\nInstance is now running and has passed status checks.");
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // Print spinner character
-                                                    print!(
-                                                        "\r{}{}{}{}{}",
-                                                        spinner_chars[spinner_index],
-                                                        spinner_chars[spinner_index],
-                                                        spinner_chars[spinner_index],
-                                                        spinner_chars[spinner_index],
-                                                        spinner_chars[spinner_index]
-                                                    );
-                                                    io::stdout().flush().unwrap();
-
-                                                    // Update spinner index for next character
-                                                    spinner_index =
-                                                        (spinner_index + 1) % spinner_chars.len();
-
-                                                    // Wait for some time before the next poll
-                                                    tokio::time::sleep(
-                                                        std::time::Duration::from_millis(200),
-                                                    )
-                                                    .await;
-                                                }
-
-                                                connect_to_instance(
-                                                    instance_id.clone(),
-                                                    public_key.clone(),
-                                                )
-                                                .await?;
-
-                                                let dns_resp = client
-                                                    .describe_instances()
-                                                    .instance_ids(instance_id.clone())
-                                                    .send()
-                                                    .await;
-
-                                                match dns_resp {
-                                                    Ok(resp) => {
-                                                        if let Some(reservation) =
-                                                            resp.reservations().first()
-                                                        {
-                                                            if let Some(instance) =
-                                                                reservation.instances().first()
-                                                            {
-                                                                if let Some(dns) =
-                                                                    instance.public_dns_name()
-                                                                {
-                                                                    if !dns.is_empty() {
-                                                                        public_dns =
-                                                                            dns.to_string(); // Clone the DNS name
-                                                                        println!("Public DNS of the instance: {}", public_dns);
-                                                                    } else {
-                                                                        eprintln!(
-                                                                            "Public DNS is empty."
-                                                                        );
-                                                                    }
-                                                                } else {
-                                                                    eprintln!("Failed to retrieve public DNS.");
-                                                                }
-                                                            } else {
-                                                                eprintln!("Instance not found in the response.");
-                                                            }
-                                                        } else {
-                                                            eprintln!("No reservations found in the response.");
-                                                        }
-                                                    }
-                                                    Err(e) => {
-                                                        eprintln!("Failed to describe instances for public DNS retrieval: {}", e);
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                eprintln!("Failed to start instance: {}", e);
-                                                return Err(Box::new(std::io::Error::new(
-                                                    std::io::ErrorKind::Other,
-                                                    e,
-                                                ))
-                                                    as Box<dyn Error>);
-                                            }
-                                        }
-                                    }
-                                    "n" => {
-                                        println!("Instance not started");
-                                        return Ok(());
-                                    }
-                                    _ => {
-                                        println!("Invalid input. Please enter 'y' or 'n'.");
-                                        return Ok(());
-                                    }
-                                };
-                            }
-
-                            let current_datetime = Utc::now()
-                                .format_with_items(StrftimeItems::new("%d-%m-%Y-%H.%M"))
-                                .to_string();
-                            let host_name = format!(
-                                "ec2Connector-{}-{}",
-                                ec2_connect_command.ec2_name, current_datetime
-                            );
-                            let ssh_config_path = dirs::home_dir()
-                                .ok_or("Could not find home directory")?
-                                .join(".ssh")
-                                .join("config");
-                            // Read existing SSH config and check if the entry already exists
-                            let entry_exists = if ssh_config_path.exists() {
-                                let file = fs::File::open(&ssh_config_path)?;
-                                let reader = BufReader::new(file);
-
-                                reader.lines().any(|line| {
-                                    line.ok().map_or(false, |l| {
-                                        l.contains(&format!(
-                                            "Host {}",
-                                            format!(
-                                                "ec2Connector-{}-{}",
-                                                ec2_connect_command.ec2_name, current_datetime
-                                            )
-                                        ))
-                                    })
-                                })
-                            } else {
-                                false
-                            };
-
-                            // If entry does not exist, append the new configuration
-                            if !entry_exists {
-                                let mut ssh_config = OpenOptions::new()
-                                    .create(true)
-                                    .append(true)
-                                    .open(&ssh_config_path)?;
-                                writeln!(ssh_config, "\nHost {}", host_name.clone())?;
-                                writeln!(ssh_config, "  HostName {}", public_dns)?;
-                                writeln!(
-                                    ssh_config,
-                                    "  IdentityFile {}/key_rsa",
-                                    ec2_connector_dir.display()
-                                )?;
-                                writeln!(ssh_config, "  User ec2-user")?;
-                            } else {
-                                println!("SSH config entry already exists");
-                            }
-
-                            let command = format!(
-                        "code --folder-uri vscode-remote://ssh-remote+{}/home/ec2-user/",
-                        host_name
-                    );
-
-                            let _output = Command::new("bash")
-                                .arg("-c")
-                                .arg(&command)
-                                .output()
-                                .expect("Failed to execute command");
-
-                            let mut ssh_config_contents = fs::read_to_string(&ssh_config_path)?;
-                            let entry_start =
-                                ssh_config_contents.find(&format!("\nHost {}", host_name));
-                            if let Some(start) = entry_start {
-                                let end = ssh_config_contents[start..]
-                                    .find("\nHost ")
-                                    .map_or_else(|| ssh_config_contents.len(), |end| start + end);
-                                ssh_config_contents.replace_range(start..end, "");
-                                fs::write(&ssh_config_path, ssh_config_contents)?;
-                            }
-
-                            println!("SSH connection established")
-                        }
-                        Err(e) => {
-                            eprintln!("Error getting instance info: {}", e);
-                            return Err(
-                                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
-                                    as Box<dyn Error>,
-                            );
-                        }
-                    }
-                    return Ok(());
+                    ec2::connect::ec2_connect(ec2_connect_command).await?;
                 }
                 ConnectSubCommand::Neptune => {
                     println!("Connect to Neptune");
@@ -364,40 +85,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
             match create_command.command {
                 CreateSubCommand::NewEc2 => {
-                    // prompt user for name, size (small, medium, large), git repo and branch
-                    let mut name = String::new();
-                    let mut size = String::new();
-                    let mut git_repo = String::new();
-                    let mut branch = String::new();
-
-                    print!("Enter the name of the EC2 instance: ");
-                    io::stdout().flush().unwrap(); // Flush stdout to ensure the prompt is printed before read_line
-                    io::stdin().read_line(&mut name).unwrap();
-                    name = name.trim().to_string();
-
-
-                    let repos = task::spawn_blocking(|| get_github_repos()).await.unwrap();
-                    let repo_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select a GitHub repo")
-                        .default(0)
-                        .items(&repos[..])
-                        .interact()
-                        .unwrap();
-
-                    let selected_repo = repos[repo_selection].clone();
-
-
-                    let branches = task::spawn_blocking(|| get_github_branches(selected_repo)).await.unwrap();
-                    let branch_selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Select a branch")
-                        .default(0)
-                        .items(&branches[..])
-                        .interact()
-                        .unwrap();
-
-                    let selected_branch = branches[branch_selection].clone();
-
-                
+                    ec2::create::create_new_ec2().await;
                 }
                 CreateSubCommand::CopyOf(create_copy_of_command) => {
                     println!("Creating copy of ec2: {:?}", create_copy_of_command);
@@ -412,51 +100,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
             match stop_command.command {
                 StopSubCommand::Ec2(ec2_stop_command) => {
-                    // get ec2 public dns address and id
-                    // stop ec2
-                    // remove ssh config entry
-
-                    match get_instance_info(&ec2_stop_command.ec2_name).await {
-                        Ok((instance_id, _, is_running)) => {
-                            if is_running {
-                                let config =
-                                    aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
-                                let client = EC2Client::new(&config);
-
-                                let stop_resp = client
-                                    .stop_instances()
-                                    .instance_ids(instance_id.clone())
-                                    .send()
-                                    .await;
-
-                                match stop_resp {
-                                    Ok(_) => {
-                                        println!(
-                                            "Successfully sent stop request for instance {}",
-                                            ec2_stop_command.ec2_name
-                                        );
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Failed to stop instance: {}", e);
-                                        return Err(Box::new(std::io::Error::new(
-                                            std::io::ErrorKind::Other,
-                                            e,
-                                        ))
-                                            as Box<dyn Error>);
-                                    }
-                                }
-                            } else {
-                                println!("Instance is not in a state to be stopped.");
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Error getting instance info: {}", e);
-                            return Err(
-                                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
-                                    as Box<dyn Error>,
-                            );
-                        }
-                    }
+                    ec2::stop::stop_ec2(ec2_stop_command).await?;
                 }
                 StopSubCommand::Neptune(neptune_stop_command) => {
                     println!("Stopping Neptune: {:?}", neptune_stop_command);
@@ -565,258 +209,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         EntityType::List(list_command) => match list_command.command {
             args::ListSubCommand::Ec2 => {
-                let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
-                let client = EC2Client::new(&config);
-                let cw_client = CloudWatchClient::new(&config);
-
-                let resp = match client.describe_instances().send().await {
-                    Ok(resp) => resp,
-                    Err(e) => {
-                        eprintln!("Failed to describe instances: {}", e);
-                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
-                            as Box<dyn Error>);
-                    }
-                };
-
-                let mut instances = Vec::new();
-
-                for reservation in resp.reservations() {
-                    for instance in reservation.instances() {
-                        let instance_id = instance.instance_id().unwrap_or_default().to_string();
-                        let public_dns = instance.public_dns_name().unwrap_or_default().to_string();
-                        let is_running = instance
-                            .state()
-                            .and_then(|s| s.name())
-                            .map_or(false, |state_name| {
-                                *state_name == InstanceStateName::Running
-                            });
-                        let name = instance
-                            .tags()
-                            .iter()
-                            .find(|tag| tag.key().unwrap_or_default() == "Name")
-                            .map_or("".to_string(), |tag| {
-                                tag.value().unwrap_or_default().to_string()
-                            });
-                            let cpu_utilization = get_cpu_utilization(&cw_client, &instance_id).await.unwrap_or(0.0);
-                            instances.push((name, is_running, instance_id, public_dns, cpu_utilization));
-        
-
-                    }
-                }
-
-                if instances.is_empty() {
-                    println!("No instances found");
-                } else {
-                    println!(" ");
-                    let title = "EC2 INSTANCE INFORMATION";
-                    let separator = "=".repeat(104);
-                    let name = "\x1b[1m".to_owned() + title + "\x1b[0m";
-                    let lines = "\x1b[1m=\x1b[0m".repeat(90);
-                    
-                    println!("{:^1$}", name, separator.len());
-                    println!("{}", lines);
-                    println!("{}", " ");
-
-                    println!(
-                        "{:<20} {:<10} {:<20} {:<10} {:<20}",
-                        "Name", "Status", "Instance ID", "CPU Utilization", "Public DNS",
-                    );
-                    println!("{}", "-".repeat(90));
-                    for (name, is_running, instance_id, public_dns, cpu_utilization) in instances {
-                        println!(
-                            "{:<20} {:<10} {:<20} {:<10} {:<20} ",
-                            name,
-                            if is_running { "running" } else { "stopped" },
-                            instance_id,
-                            format!("{:.2}%", cpu_utilization),
-                            public_dns,
-                        );
-                    }
-                }
+                ec2::list::list_ec2().await?;
             }
 
             args::ListSubCommand::Neptune => {
-                let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
-                let client = NeptuneClient::new(&config);
-                let cloudwatch_client = CloudWatchClient::new(&config);
-                // Describe Neptune clusters
-                let clusters = match client.describe_db_clusters().send().await {
-                    Ok(resp) => resp,
-                    Err(e) => {
-                        eprintln!("Failed to describe clusters: {}", e);
-                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn Error>);
-                    }
-                }; 
-
-                println!("{}", " ");
-                let title = "NEPTUNE CLUSTER INFORMATION";
-                let separator = "=".repeat(63);
-                let lines = "\x1b[1m=\x1b[0m".repeat(55);
-                println!("{:^1$}", format!("\x1b[1m{}\x1b[0m", title), separator.len());
-                println!("{}", lines);
-                println!("{}", " ");
-                for cluster in clusters.db_clusters() {
-                    
-                    // Get CPU Utilization from CloudWatch
-                    let metric_name = "CPUUtilization";
-                    let namespace = "AWS/Neptune";
-
-                    let chrono_start_time = chrono::Utc::now() - chrono::Duration::minutes(5);
-                    let chrono_end_time = chrono::Utc::now();
-
-                    let start_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_start_time));
-                    let end_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_end_time));
-
-                    let cpu_util_resp = cloudwatch_client.get_metric_statistics()
-                        .namespace(namespace)
-                        .metric_name(metric_name)
-                        .start_time(start_time) // Last 1 hour
-                        .end_time(end_time)
-                        .period(300) // 5 minutes periods
-                        .statistics(Statistic::Average)
-                        .dimensions(
-                            aws_sdk_cloudwatch::types::Dimension::builder()
-                                .name("DBClusterIdentifier")
-                                .value(cluster.db_cluster_identifier().unwrap_or_default())
-                                .build()
-                        )
-                        .send()
-                        .await;
-                    
-                    let mut cpu_util: Option<(String, f64)> = None;
-                    if let Ok(stats) = cpu_util_resp {
-                        for point in stats.datapoints() {
-                            match (point.timestamp(), point.average()) {
-                                (Some(timestamp), Some(average)) => {
-                                    let timestamp_str = timestamp.to_string();
-                                    match chrono::DateTime::parse_from_rfc3339(&timestamp_str) {
-                                        Ok(datetime) => {
-                                            let formatted_timestamp = datetime.format("%I:%M%p %d/%m/%Y").to_string();
-                                            cpu_util = Some((formatted_timestamp, average));
-                                        }
-                                        Err(e) => {
-                                            eprintln!("Failed to parse timestamp: {}", e);
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    println!("Missing data");
-                                }
-                            }
-                        }
-                    } else {
-                        eprintln!("Failed to get CPU utilization metrics.");
-                    }
-                    let cluster_name = cluster.db_cluster_identifier().unwrap_or_default();
-                    let status = cluster.status().unwrap_or_default();
-                    let endpoint = cluster.endpoint().unwrap_or_default();
-
-                    let instance_count = cluster.db_cluster_members().len();
-
-                    // Construct the AWS console link for the cluster
-                    let cluster_link = format!("https://console.aws.amazon.com/neptune/home?region={}#database:id={};is-cluster=true", 
-                    config.region().unwrap().as_ref(), 
-                    cluster.db_cluster_identifier().unwrap_or_default());
-                    println!("\x1b[1m{} {}\x1b[0m", "Cluster:", cluster_name);
-                    println!("{}", "\x1b[1m-\x1b[0m".repeat(55));
-                    println!("\x1b[1m{:<16}\x1b[0m {}", "Instance Count:", instance_count);
-                    println!("\x1b[1m{:<16}\x1b[0m {}", "Status:", status);
-                    println!("\x1b[1m{:<16}\x1b[0m {}", "CPU Utilisation:", match cpu_util {
-                        Some((timestamp, average)) => format!("{:.2}% at {}", average, timestamp),
-                        None => "N/A".to_string(),
-                    });
-                    println!("\x1b[1m{:<16}\x1b[0m {}", "Endpoint:", endpoint);
-                    println!("\x1b[1m{:<16}\x1b[0m {}", "Cluster Link:", cluster_link);
-                    println!("{}", " ");
-                    
-                }
+                neptune::list::list_neptune().await?;
             }
         },
     }
 
     Ok(())
 }
-async fn connect_to_instance(
-    instance_id: String,
-    ssh_public_key: String,
-) -> Result<(), InstanceConnectClientError> {
-    let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
-    let client = InstanceConnectClient::new(&config);
 
-    client
-        .send_ssh_public_key()
-        .instance_id(&instance_id)
-        .ssh_public_key(&ssh_public_key)
-        .instance_os_user("ec2-user")
-        .send()
-        .await?;
 
-    Ok(())
-}
-
-async fn get_cpu_utilization(cw_client: &CloudWatchClient, instance_id: &str) -> Result<f64, Box<dyn Error>> {
-    let dimension = Dimension::builder()
-        .name("InstanceId")
-        .value(instance_id)
-        .build();
-
-    let statistic = Statistic::Average;
-
-    let chrono_start_time = chrono::Utc::now() - chrono::Duration::minutes(5);
-    let chrono_end_time = chrono::Utc::now();
-
-    let start_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_start_time));
-    let end_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_end_time));
-
-    let resp = cw_client.get_metric_statistics()
-        .namespace("AWS/EC2")
-        .metric_name("CPUUtilization")
-        .dimensions(dimension)
-        .start_time(start_time)
-        .end_time(end_time)
-        .period(300)
-        .statistics(statistic)
-        .send()
-        .await?;
-
-    let average_cpu_utilization = resp.datapoints().get(0).and_then(|dp| dp.average()).unwrap_or(0.0);
-
-    Ok(average_cpu_utilization)
-}
-
-// Returns instance id, public dns, and a boolean indicating if the instance is running
-async fn get_instance_info(instance_name: &str) -> Result<(String, String, bool), String> {
-    let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
-    let client = EC2Client::new(&config);
-
-    let tag_filter = Filter::builder()
-        .name("tag:Name")
-        .values(instance_name)
-        .build();
-
-    let resp = match client.describe_instances().filters(tag_filter).send().await {
-        Ok(resp) => resp,
-        Err(e) => return Err(format!("Failed to describe instances: {}", e)),
-    };
-
-    for reservation in resp.reservations() {
-        for instance in reservation.instances() {
-            let instance_id = instance.instance_id().unwrap_or_default().to_string();
-            let public_dns = instance.public_dns_name().unwrap_or_default().to_string();
-
-            let is_running = instance
-                .state()
-                .and_then(|s| s.name())
-                .map_or(false, |state_name| {
-                    *state_name == InstanceStateName::Running
-                });
-
-            return Ok((instance_id, public_dns, is_running));
-        }
-    }
-
-    Err("No matching instances found".to_string())
-}
 
 pub fn is_configured() -> bool {
     // check if aws credentials are configured
@@ -855,25 +260,3 @@ pub fn is_configured() -> bool {
 }
 
 
-fn get_github_repos() -> Vec<String> {
-    let output = Command::new("gh")
-        .arg("repo")
-        .arg("list")
-        .output()
-        .expect("Failed to list GitHub repos");
-
-    let repos = String::from_utf8(output.stdout).unwrap();
-    repos.lines().map(|line| line.split('\t').next().unwrap().to_string()).collect()
-}
-
-fn get_github_branches(repo: String) -> Vec<String> {
-    let output = Command::new("gh")
-        .arg("api")
-        .arg(format!("/repos/{}/branches", repo))
-        .output()
-        .expect("Failed to list GitHub branches");
-
-    let branches = String::from_utf8(output.stdout).unwrap();
-    let branches: Vec<serde_json::Value> = serde_json::from_str(&branches).unwrap();
-    branches.into_iter().map(|branch| branch["name"].as_str().unwrap().to_string()).collect()
-}
