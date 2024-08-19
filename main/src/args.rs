@@ -24,8 +24,8 @@ pub enum EntityType {
     /// Closes the connection to the EC2 instance and shuts it down.
     Stop(StopCommand),
 
-    /// Configures your credentials to be able to connect to our EC2s and use them effectively.
-    Config(ConfigCommand),
+    /// Setup your credentials to be able to connect to our EC2s and use them effectively.
+    Setup(SetupCommand),
 
     /// Lists resources that are available to you.
     List(ListCommand),
@@ -72,32 +72,37 @@ pub struct CreateCopyOfCommand {
 }
 
 #[derive(Debug, Args)]
-pub struct ConfigCommand {
+pub struct SetupCommand {
     #[clap(subcommand)]
-    pub command: ConfigSubCommand,
+    pub command: SetupSubCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum ConfigSubCommand {
-    /// Configures your AWS credentials and other options needed.
+pub enum SetupSubCommand {
+    /// Setupures your AWS credentials and other options needed.
     Aws,
 
-    /// Configures your Git credentials and other options needed.
-    Git(GitConfig),
+    /// Setupures your Git credentials and other options needed.
+    GitHub,
 }
 
 #[derive(Debug, Args)]
-pub struct GitConfig {
+pub struct GithubSetup {
     #[clap(subcommand)]
-    pub command: GitConfigCommand,
+    pub command: GithubSetupCommand,
 }
 
 
 #[derive(Debug, Subcommand)]
-pub enum GitConfigCommand {
+pub enum GithubSetupCommand {
+    PATToken(PATTokenCommand),
     Email(EmailCommand),
-    Name(NameCommand),
-    Login,
+    UserName(UserNameCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct PATTokenCommand {
+    pub token: String,
 }
 
 #[derive(Debug, Args)]
@@ -106,8 +111,8 @@ pub struct EmailCommand {
 }
 
 #[derive(Debug, Args)]
-pub struct NameCommand {
-    pub name: String,
+pub struct UserNameCommand {
+    pub username: String,
 }
 
 #[derive(Debug, Args)]

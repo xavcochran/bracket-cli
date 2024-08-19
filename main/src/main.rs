@@ -1,10 +1,11 @@
 mod args;
 mod ec2;
-mod utils;
 mod neptune;
+mod utils;
+mod github;
 
 use args::{
-    ConfigSubCommand, ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, StopSubCommand,
+    ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, SetupSubCommand, StopSubCommand,
 };
 use aws_config;
 use clap::Parser;
@@ -12,7 +13,6 @@ use regex::Regex;
 use std::error::Error;
 use std::io::{self, Write};
 use std::process::Command;
-
 
 #[::tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -90,106 +90,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-        EntityType::Config(config_command) => {
-            match config_command.command {
-                ConfigSubCommand::Aws => {
-                    let command = "aws configure";
+        EntityType::Setup(config_command) => match config_command.command {
+            SetupSubCommand::Aws => {
+                let command = "aws configure";
 
-                    let child = Command::new("bash")
-                        .arg("-c")
-                        .arg(&command)
-                        .spawn()
-                        .expect("Failed to execute command");
+                let child = Command::new("bash")
+                    .arg("-c")
+                    .arg(&command)
+                    .spawn()
+                    .expect("Failed to execute command");
 
-                    let output = child.wait_with_output()?;
+                let output = child.wait_with_output()?;
 
-                    if !output.status.success() {
-                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, ""))
-                            as Box<dyn Error>);
-                    }
-                }
-                ConfigSubCommand::Git(git_config_subcommand) => {
-                    match git_config_subcommand.command {
-                        // ...
-                        args::GitConfigCommand::Email(mut email) => {
-                            let email_regex =
-                                Regex::new(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
-                                    .unwrap();
-
-                            loop {
-                                if email_regex.is_match(&email.email) {
-                                    let command = format!("gh config set git_protocol ssh && git config --global user.email \"{}\"", email.email);
-
-                                    let child = Command::new("bash")
-                                        .arg("-c")
-                                        .arg(&command)
-                                        .spawn()
-                                        .expect("Failed to execute command");
-
-                                    let output = child.wait_with_output()?;
-
-                                    if output.status.success() {
-                                        break;
-                                    } else {
-                                        return Err(Box::new(std::io::Error::new(
-                                            std::io::ErrorKind::Other,
-                                            "Failed to set email",
-                                        ))
-                                            as Box<dyn Error>);
-                                    }
-                                } else {
-                                    eprintln!("Invalid email format. Please try again.");
-                                }
-
-                                print!("Enter a valid email: ");
-                                io::stdout().flush()?;
-
-                                email.email.clear();
-                                io::stdin().read_line(&mut email.email)?;
-                                email.email = email.email.trim().to_string();
-                            }
-                        }
-
-                        args::GitConfigCommand::Name(name) => {
-                            let command = format!("gh config set git_protocol ssh && git config --global user.name \"{}\"", name.name);
-
-                            let child = Command::new("bash")
-                                .arg("-c")
-                                .arg(&command)
-                                .spawn()
-                                .expect("Failed to execute command");
-
-                            let output = child.wait_with_output()?;
-
-                            if !output.status.success() {
-                                return Err(Box::new(std::io::Error::new(
-                                    std::io::ErrorKind::Other,
-                                    "",
-                                )) as Box<dyn Error>);
-                            }
-                        }
-                        args::GitConfigCommand::Login => {
-                            let command = "gh auth login";
-
-                            let child = Command::new("bash")
-                                .arg("-c")
-                                .arg(&command)
-                                .spawn()
-                                .expect("Failed to execute command");
-
-                            let output = child.wait_with_output()?;
-
-                            if !output.status.success() {
-                                return Err(Box::new(std::io::Error::new(
-                                    std::io::ErrorKind::Other,
-                                    "",
-                                )) as Box<dyn Error>);
-                            }
-                        }
-                    }
+                if !output.status.success() {
+                    return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, ""))
+                        as Box<dyn Error>);
                 }
             }
-        }
+            SetupSubCommand::GitHub => {
+                github::setup::setup_github().await?;
+            }
+
+        },
         EntityType::List(list_command) => match list_command.command {
             args::ListSubCommand::Ec2 => {
                 ec2::list::list_ec2().await?;
@@ -203,8 +125,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-
 
 pub fn is_configured() -> bool {
     // check if aws credentials are configured
@@ -241,5 +161,3 @@ pub fn is_configured() -> bool {
 
     true
 }
-
-
