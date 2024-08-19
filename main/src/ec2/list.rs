@@ -1,23 +1,10 @@
 use aws_config;
 use aws_config::BehaviorVersion;
 use aws_sdk_cloudwatch::{types::Dimension, types::Statistic, Client as CloudWatchClient};
-use aws_sdk_ec2::{types::Filter, types::InstanceStateName, Client as EC2Client};
-use aws_sdk_ec2instanceconnect::{
-    Client as InstanceConnectClient, Error as InstanceConnectClientError,
-};
-use aws_sdk_neptune::Client as NeptuneClient;
+use aws_sdk_ec2::{types::InstanceStateName, Client as EC2Client};
 use std::time::SystemTime;
-
 use chrono::{self};
-use clap::Parser;
-
-use regex::Regex;
 use std::error::Error;
-
-use dialoguer::{theme::ColorfulTheme, Select};
-use std::io::{self, Write};
-use std::process::Command;
-use tokio::task;
 
 pub async fn list_ec2() -> Result<(), Box<dyn Error>> {
     // list all ec2 instances

@@ -1,22 +1,3 @@
-use std::time::SystemTime;
-use aws_config;
-use aws_config::BehaviorVersion;
-use aws_sdk_ec2::{
-    types::Filter, types::InstanceStateName, Client as EC2Client,
-};
-use aws_sdk_ec2instanceconnect::{
-    Client as InstanceConnectClient, Error as InstanceConnectClientError,
-};
-use aws_sdk_neptune::Client as NeptuneClient;
-use aws_sdk_cloudwatch::{Client as CloudWatchClient, types::Statistic, types::Dimension};
-
-
-use chrono::{self};
-use clap::Parser;
-
-use regex::Regex;
-use std::error::Error;
-
 use std::io::{self, Write};
 use std::process::Command;
 use dialoguer::{theme::ColorfulTheme, Select};

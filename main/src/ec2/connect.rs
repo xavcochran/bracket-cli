@@ -2,7 +2,7 @@ use aws_config;
 use aws_config::BehaviorVersion;
 use aws_sdk_cloudwatch::{types::Dimension, types::Statistic, Client as CloudWatchClient};
 use aws_sdk_ec2::{
-    types::Filter, types::InstanceStateName, types::SummaryStatus, Client as EC2Client,
+    types::InstanceStateName, types::SummaryStatus, Client as EC2Client,
 };
 use aws_sdk_ec2instanceconnect::{
     Client as InstanceConnectClient, Error as InstanceConnectClientError,
