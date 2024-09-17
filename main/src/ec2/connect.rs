@@ -1,16 +1,14 @@
 use aws_config;
 use aws_config::BehaviorVersion;
 use aws_sdk_cloudwatch::{types::Dimension, types::Statistic, Client as CloudWatchClient};
-use aws_sdk_ec2::{
-    types::InstanceStateName, types::SummaryStatus, Client as EC2Client,
-};
+use aws_sdk_ec2::{types::InstanceStateName, types::SummaryStatus, Client as EC2Client};
 use aws_sdk_ec2instanceconnect::{
     Client as InstanceConnectClient, Error as InstanceConnectClientError,
 };
-use std::time::SystemTime;
 use chrono::format::strftime::StrftimeItems;
 use chrono::{self, Utc};
 use dirs;
+use std::time::SystemTime;
 
 use std::error::Error;
 use std::fs::{self, OpenOptions};
@@ -19,11 +17,9 @@ use std::process::Command;
 
 use crate::args;
 use crate::utils::get_instance_info;
+use crate::utils::AppError;
 
-
-pub async fn ec2_connect(
-    ec2_connect_command: args::Ec2ConnectCommand,
-) -> Result<(), Box<dyn Error>> {
+pub async fn ec2_connect(ec2_connect_command: args::Ec2ConnectCommand) -> Result<(), AppError> {
     // run ssh keygen command
     let file_name = "key_rsa"; // replace with your desired file name
     let home_dir = dirs::home_dir().expect("Could not get home directory");
@@ -49,7 +45,7 @@ pub async fn ec2_connect(
     let home_dir = dirs::home_dir().expect("Could not get home directory");
     let file_path = home_dir.join("ec2_connector").join(file_name);
     let public_key = fs::read_to_string(file_path).expect("Failed to read SSH public key file");
-    
+
     // get ec2 public dns address and id
     match get_instance_info(&ec2_connect_command.ec2_name).await {
         Ok((instance_id, public_dns, is_running)) => {
@@ -195,11 +191,8 @@ pub async fn ec2_connect(
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Failed to start instance: {}", e);
-                                return Err(Box::new(std::io::Error::new(
-                                    std::io::ErrorKind::Other,
-                                    e,
-                                )) as Box<dyn Error>);
+                                let err_str: String = format!("Failed to start instance: {}", e);
+                                return Err(AppError::CommandFailed(err_str));
                             }
                         }
                     }
@@ -225,7 +218,7 @@ pub async fn ec2_connect(
                 ec2_connect_command.ec2_name, current_datetime
             );
             let ssh_config_path = dirs::home_dir()
-                .ok_or("Could not find home directory")?
+                .ok_or_else(|| AppError::Other("Could not find home directory".to_string()))?
                 .join(".ssh")
                 .join("config");
             // Read existing SSH config and check if the entry already exists
@@ -290,21 +283,16 @@ pub async fn ec2_connect(
             println!("SSH connection established")
         }
         Err(e) => {
-            eprintln!("Error getting instance info: {}", e);
-            return Err(
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn Error>
-            );
+            let err_str: String = format!("Failed to connect to instance: {}", e);
+            return Err(AppError::CommandFailed(err_str));
         }
     }
     return Ok(());
 }
 
 // Connect to an EC2 instance using EC2 Instance Connect
-async fn connect_to_instance(
-    instance_id: String,
-    ssh_public_key: String,
-) -> Result<(), InstanceConnectClientError> {
-    let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+async fn connect_to_instance(instance_id: String, ssh_public_key: String) -> Result<(), AppError> {
+    let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
     let client = InstanceConnectClient::new(&config);
 
     client
@@ -313,7 +301,8 @@ async fn connect_to_instance(
         .ssh_public_key(&ssh_public_key)
         .instance_os_user("ec2-user")
         .send()
-        .await?;
+        .await
+        .expect("Could not connect to instance. Please try again!");
 
     Ok(())
 }
@@ -356,4 +345,3 @@ async fn get_cpu_utilization(
 
     Ok(average_cpu_utilization)
 }
-

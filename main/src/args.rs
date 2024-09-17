@@ -83,7 +83,7 @@ pub enum SetupSubCommand {
     Aws,
 
     /// Setupures your Git credentials and other options needed.
-    GitHub,
+    Github,
 }
 
 #[derive(Debug, Args)]
@@ -156,5 +156,8 @@ pub enum ListSubCommand {
 
     /// Stops the Neptune instance and closes the connection.
     Neptune,
+
+    /// Lists Github coniguration
+    Github,
 }
 

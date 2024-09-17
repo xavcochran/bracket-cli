@@ -5,22 +5,21 @@ use aws_sdk_ec2::{types::InstanceStateName, Client as EC2Client};
 use std::time::SystemTime;
 use chrono::{self};
 use std::error::Error;
+use crate::AppError;
 
-pub async fn list_ec2() -> Result<(), Box<dyn Error>> {
+pub async fn list_ec2() -> Result<(), AppError> {
     // list all ec2 instances
     // get instance id, public dns, and state
     // print out the info
-    let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+    let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
     let client = EC2Client::new(&config);
     let cw_client = CloudWatchClient::new(&config);
 
     let resp = match client.describe_instances().send().await {
         Ok(resp) => resp,
         Err(e) => {
-            eprintln!("Failed to describe instances: {}", e);
-            return Err(
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn Error>
-            );
+            let err_str: String = format!("Failed to describe instances: {}", e);
+            return Err(AppError::CommandFailed(err_str));
         }
     };
 
@@ -84,7 +83,7 @@ pub async fn list_ec2() -> Result<(), Box<dyn Error>> {
 }
 
 
-async fn get_cpu_utilization(cw_client: &CloudWatchClient, instance_id: &str) -> Result<f64, Box<dyn Error>> {
+async fn get_cpu_utilization(cw_client: &CloudWatchClient, instance_id: &str) -> Result<f64, AppError> {
     let dimension = Dimension::builder()
         .name("InstanceId")
         .value(instance_id)
@@ -107,7 +106,8 @@ async fn get_cpu_utilization(cw_client: &CloudWatchClient, instance_id: &str) ->
         .period(300)
         .statistics(statistic)
         .send()
-        .await?;
+        .await
+        .map_err(|e| AppError::Other(format!("Could not get CPU utilization from instance: {}", e)))?;
 
     let average_cpu_utilization = resp.datapoints().get(0).and_then(|dp| dp.average()).unwrap_or(0.0);
 

@@ -1,8 +1,8 @@
 mod args;
 mod ec2;
+mod github;
 mod neptune;
 mod utils;
-mod github;
 
 use args::{
     ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, SetupSubCommand, StopSubCommand,
@@ -14,41 +14,32 @@ use std::error::Error;
 use std::io::{self, Write};
 use std::process::Command;
 
+use std::fmt;
+
+use utils::AppError;
+
 #[::tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), AppError> {
     let code_check = Command::new("bash")
         .arg("-c")
         .arg("code --version")
-        .output();
+        .output()
+        .map_err(|e| AppError::CommandFailed(format!("Failed to run 'code --version': {}", e)))?;
 
-    match code_check {
-        Ok(output) => {
-            if !output.status.success() {
-                eprintln!("'code' command is not available. Please add it to your PATH. \n
-                To do this do the following: \n
-                    > In VS Code, open the Command Palette (View > Command Palette or ((Ctrl/Cmd)+Shift+P)). \n
-                    > Then enter 'shell command' to find the `Shell Command: Install 'code' command in PATH` command. \n
-                    > Restart the terminal for the new $PATH value to take effect. You'll be able to type 'code .' in any folder to start editing files in that folder.
-                ");
-                return Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "'code' command is not available",
-                )) as Box<dyn Error>);
-            }
-        }
-        Err(e) => {
-            eprintln!("'code' command is not available. Please install Visual Studio Code and add it to your PATH.");
-            return Err(Box::new(e) as Box<dyn Error>);
-        }
+    if !code_check.status.success() {
+        return Err(AppError::CommandFailed(
+            "'code' command is not available".to_string(),
+        ));
     }
 
     let args = EC2connector::parse();
+
     match args.entity_type {
         EntityType::Connect(connect_command) => {
-            if !is_configured() {
-                return Err(
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "")) as Box<dyn Error>
-                );
+            if !is_configured()? {
+                return Err(AppError::ConfigurationError(
+                    "AWS or GitHub not configured.".to_string(),
+                ));
             }
             match connect_command.command {
                 ConnectSubCommand::Ec2(ec2_connect_command) => {
@@ -61,10 +52,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         EntityType::Create(create_command) => {
-            if !is_configured() {
-                return Err(
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "")) as Box<dyn Error>
-                );
+            if !is_configured()? {
+                return Err(AppError::ConfigurationError(
+                    "AWS or GitHub not configured.".to_string(),
+                ));
             }
             match create_command.command {
                 CreateSubCommand::NewEc2 => {
@@ -75,11 +66,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+
         EntityType::Stop(stop_command) => {
-            if !is_configured() {
-                return Err(
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "")) as Box<dyn Error>
-                );
+            if !is_configured()? {
+                return Err(AppError::ConfigurationError(
+                    "AWS or GitHub not configured.".to_string(),
+                ));
             }
             match stop_command.command {
                 StopSubCommand::Ec2(ec2_stop_command) => {
@@ -90,35 +82,38 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+
         EntityType::Setup(config_command) => match config_command.command {
             SetupSubCommand::Aws => {
                 let command = "aws configure";
-
                 let child = Command::new("bash")
                     .arg("-c")
                     .arg(&command)
                     .spawn()
-                    .expect("Failed to execute command");
+                    .map_err(AppError::Io)?;
 
-                let output = child.wait_with_output()?;
+                let output = child.wait_with_output().map_err(AppError::Io)?;
 
                 if !output.status.success() {
-                    return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, ""))
-                        as Box<dyn Error>);
+                    return Err(AppError::CommandFailed(
+                        "Failed to configure AWS.".to_string(),
+                    ));
                 }
             }
-            SetupSubCommand::GitHub => {
+            SetupSubCommand::Github => {
                 github::setup::setup_github().await?;
             }
-
         },
+
         EntityType::List(list_command) => match list_command.command {
             args::ListSubCommand::Ec2 => {
                 ec2::list::list_ec2().await?;
             }
-
             args::ListSubCommand::Neptune => {
                 neptune::list::list_neptune().await?;
+            }
+            args::ListSubCommand::Github => {
+                github::setup::list_github_config().await?;
             }
         },
     }
@@ -126,38 +121,36 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn is_configured() -> bool {
-    // check if aws credentials are configured
-    let command = format!("aws configure get aws_access_key_id && aws configure get region");
-
-    let output = Command::new("bash")
+pub fn is_configured() -> Result<bool, AppError> {
+    let aws_check_cmd = "aws configure get aws_access_key_id && aws configure get region";
+    let aws_output = Command::new("bash")
         .arg("-c")
-        .arg(&command)
+        .arg(aws_check_cmd)
         .output()
-        .expect(
-            "AWS credentials are not configured, please install the AWS CLI or run 'aws configure'",
-        );
+        .map_err(|e| {
+            AppError::CommandFailed(format!("Failed to check AWS configuration: {}", e))
+        })?;
 
-    if !output.status.success() {
-        println!(
-            "AWS credentials are not configured, please install the AWS CLI or run 'aws configure'"
-        );
-        return false;
+    if !aws_output.status.success() {
+        return Err(AppError::ConfigurationError(
+            "AWS credentials are not configured".to_string(),
+        ));
     }
 
-    // check if git credentials are configured
-    let command = format!("gh auth status");
-
-    let output = Command::new("bash")
+    let github_check_cmd = "gh auth status";
+    let github_output = Command::new("bash")
         .arg("-c")
-        .arg(&command)
+        .arg(github_check_cmd)
         .output()
-        .expect("Github credentials are not configured, please install the Github CLI or run 'gh auth login'");
+        .map_err(|e| {
+            AppError::CommandFailed(format!("Failed to check GitHub configuration: {}", e))
+        })?;
 
-    if !output.status.success() {
-        println!("Github credentials are not configured, please install the Github CLI or run 'gh auth login'");
-        return false;
+    if !github_output.status.success() {
+        return Err(AppError::ConfigurationError(
+            "GitHub credentials are not configured".to_string(),
+        ));
     }
 
-    true
+    Ok(true)
 }

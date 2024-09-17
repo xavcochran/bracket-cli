@@ -3,9 +3,9 @@ use crate::args;
 use crate::utils::get_instance_info;
 use aws_config::BehaviorVersion;
 use aws_sdk_ec2::Client as EC2Client;
-use std::error::Error;
+use crate::AppError;
 
-pub async fn stop_ec2(ec2_stop_command: args::Ec2StopCommand) -> Result<(), Box<dyn Error>> {
+pub async fn stop_ec2(ec2_stop_command: args::Ec2StopCommand) -> Result<(), AppError> {
     // get ec2 public dns address and id
     // stop ec2
     // remove ssh config entry
@@ -13,7 +13,7 @@ pub async fn stop_ec2(ec2_stop_command: args::Ec2StopCommand) -> Result<(), Box<
     match get_instance_info(&ec2_stop_command.ec2_name).await {
         Ok((instance_id, _, is_running)) => {
             if is_running {
-                let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+                let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
                 let client = EC2Client::new(&config);
 
                 let stop_resp = client
@@ -31,9 +31,8 @@ pub async fn stop_ec2(ec2_stop_command: args::Ec2StopCommand) -> Result<(), Box<
                         return Ok(());
                     }
                     Err(e) => {
-                        eprintln!("Failed to stop instance: {}", e);
-                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
-                            as Box<dyn Error>);
+                        let err_str: String = format!("Failed to connect to instance: {}", e);
+                        return Err(AppError::CommandFailed(err_str));
                     }
                 }
             } else {
@@ -42,10 +41,8 @@ pub async fn stop_ec2(ec2_stop_command: args::Ec2StopCommand) -> Result<(), Box<
             }
         }
         Err(e) => {
-            eprintln!("Error getting instance info: {}", e);
-            return Err(
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn Error>
-            );
+            let err_str: String = format!("Error getting instance info: {}", e);
+            return Err(AppError::CommandFailed(err_str));
         }
     }
 }

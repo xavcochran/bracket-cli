@@ -5,20 +5,20 @@ use aws_sdk_neptune::Client as NeptuneClient;
 use std::time::SystemTime;
 
 use chrono::{self};
-use std::error::Error;
 
-pub async fn list_neptune() -> Result<(), Box<dyn Error>> {
-    let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+
+use crate::utils::AppError;
+
+pub async fn list_neptune() -> Result<(), AppError> {
+    let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
     let client = NeptuneClient::new(&config);
     let cloudwatch_client = CloudWatchClient::new(&config);
     // Describe Neptune clusters
     let clusters = match client.describe_db_clusters().send().await {
         Ok(resp) => resp,
         Err(e) => {
-            eprintln!("Failed to describe clusters: {}", e);
-            return Err(
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn Error>
-            );
+            let err_str: String = format!("Failed to describe clusters: {}", e);
+            return Err(AppError::CommandFailed(err_str));
         }
     };
 

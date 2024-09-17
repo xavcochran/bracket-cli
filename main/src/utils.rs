@@ -1,4 +1,6 @@
 
+use std::fmt;
+
 use aws_config;
 use aws_config::BehaviorVersion;
 use aws_sdk_ec2::{
@@ -39,4 +41,30 @@ pub async fn get_instance_info(instance_name: &str) -> Result<(String, String, b
     }
 
     Err("No matching instances found".to_string())
+}
+
+
+#[derive(Debug)]
+pub enum AppError {
+    Io(std::io::Error),
+    CommandFailed(String),
+    ConfigurationError(String),
+    Other(String),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::Io(e) => write!(f, "IO error: {}", e),
+            AppError::CommandFailed(cmd) => write!(f, "Command failed: {}", cmd),
+            AppError::ConfigurationError(msg) => write!(f, "Configuration error: {}", msg),
+            AppError::Other(msg) => write!(f, "Error: {}", msg),
+        }
+    }
+}
+
+impl From<std::io::Error> for AppError {
+    fn from(e: std::io::Error) -> Self {
+        AppError::Io(e)
+    }
 }
