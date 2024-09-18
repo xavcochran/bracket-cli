@@ -45,6 +45,7 @@ jobs:
 
     - name: Build
       run: |
+        cd main &&
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
           if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
             cargo build --release --target x86_64-unknown-linux-gnu
@@ -66,6 +67,7 @@ jobs:
     - name: Rename and upload the binary
       run: |
         # Define output binary names based on OS and architecture
+        cd main &&
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
           if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
             mv target/x86_64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-amd64
