@@ -9,12 +9,7 @@ use args::{
 };
 use aws_config;
 use clap::Parser;
-use regex::Regex;
-use std::error::Error;
-use std::io::{self, Write};
 use std::process::Command;
-
-use std::fmt;
 
 use utils::AppError;
 

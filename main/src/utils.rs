@@ -11,7 +11,7 @@ use aws_sdk_ec2::{
 
 // Returns instance id, public dns, and a boolean indicating if the instance is running
 pub async fn get_instance_info(instance_name: &str) -> Result<(String, String, bool), String> {
-    let config = aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+    let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
     let client = EC2Client::new(&config);
 
     let tag_filter = Filter::builder()

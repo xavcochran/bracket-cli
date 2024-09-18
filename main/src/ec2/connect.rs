@@ -1,16 +1,11 @@
 use aws_config;
 use aws_config::BehaviorVersion;
-use aws_sdk_cloudwatch::{types::Dimension, types::Statistic, Client as CloudWatchClient};
 use aws_sdk_ec2::{types::InstanceStateName, types::SummaryStatus, Client as EC2Client};
-use aws_sdk_ec2instanceconnect::{
-    Client as InstanceConnectClient, Error as InstanceConnectClientError,
-};
+use aws_sdk_ec2instanceconnect::Client as InstanceConnectClient;
 use chrono::format::strftime::StrftimeItems;
 use chrono::{self, Utc};
 use dirs;
-use std::time::SystemTime;
 
-use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::Command;
@@ -70,7 +65,7 @@ pub async fn ec2_connect(ec2_connect_command: args::Ec2ConnectCommand) -> Result
                         println!("Starting instance...");
                         // Create a new EC2 client
                         let config =
-                            aws_config::load_defaults(BehaviorVersion::v2023_11_09()).await;
+                            aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
                         let client = EC2Client::new(&config);
 
                         // Start the instance
@@ -305,43 +300,4 @@ async fn connect_to_instance(instance_id: String, ssh_public_key: String) -> Res
         .expect("Could not connect to instance. Please try again!");
 
     Ok(())
-}
-
-// Get the average CPU utilization of an EC2 instance over the last 5 minutes
-async fn get_cpu_utilization(
-    cw_client: &CloudWatchClient,
-    instance_id: &str,
-) -> Result<f64, Box<dyn Error>> {
-    let dimension = Dimension::builder()
-        .name("InstanceId")
-        .value(instance_id)
-        .build();
-
-    let statistic = Statistic::Average;
-
-    let chrono_start_time = chrono::Utc::now() - chrono::Duration::minutes(5);
-    let chrono_end_time = chrono::Utc::now();
-
-    let start_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_start_time));
-    let end_time = aws_sdk_ec2::primitives::DateTime::from(SystemTime::from(chrono_end_time));
-
-    let resp = cw_client
-        .get_metric_statistics()
-        .namespace("AWS/EC2")
-        .metric_name("CPUUtilization")
-        .dimensions(dimension)
-        .start_time(start_time)
-        .end_time(end_time)
-        .period(300)
-        .statistics(statistic)
-        .send()
-        .await?;
-
-    let average_cpu_utilization = resp
-        .datapoints()
-        .get(0)
-        .and_then(|dp| dp.average())
-        .unwrap_or(0.0);
-
-    Ok(average_cpu_utilization)
 }

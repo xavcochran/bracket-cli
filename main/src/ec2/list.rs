@@ -4,7 +4,6 @@ use aws_sdk_cloudwatch::{types::Dimension, types::Statistic, Client as CloudWatc
 use aws_sdk_ec2::{types::InstanceStateName, Client as EC2Client};
 use std::time::SystemTime;
 use chrono::{self};
-use std::error::Error;
 use crate::AppError;
 
 pub async fn list_ec2() -> Result<(), AppError> {
