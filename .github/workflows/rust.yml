@@ -29,6 +29,9 @@ jobs:
         toolchain: stable
         override: true
 
+    - name: Sort out directories
+      run: cd main
+
     - name: Install target for architecture
       run: |
         if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
