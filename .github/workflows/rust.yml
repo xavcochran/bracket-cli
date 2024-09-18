@@ -82,13 +82,20 @@ jobs:
             cargo build --release --target x86_64-pc-windows-msvc
           }
 
+      # Add an ls command to debug target directory contents after build
+      - name: Debug target folder after build
+        run: |
+          cd main
+          echo "Listing target directory after build"
+          ls -R target
+
       - name: Rename and upload the binary for ubuntu and mac
         if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           # Define output binary names based on OS and architecture
           cd main
-          ls target
+          echo "Renaming files based on OS and architecture"
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             if [ "${{ matrix.arch }}" == "x86_64" ]; then
               mv target/x86_64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-amd64
@@ -99,6 +106,9 @@ jobs:
             fi
           elif [ "${{ matrix.os }}" == "macos-latest" ]; then
             if [ "${{ matrix.arch }}" == "x86_64" ]; then
+              ls target
+              ls target/release
+              ls target/x86_64-apple-darwin
               mv target/x86_64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-amd64
               echo "Binary built for macOS x86_64"
             elif [ "${{ matrix.arch }}" == "arm64" ]; then
