@@ -34,10 +34,10 @@ fi
 
 # Download the binary
 URL="https://github.com/$REPO/releases/download/$VERSION/$FILE"
-curl -L $URL -o /usr/local/bin/bracket-cli
+curl -L $URL -o /usr/local/bin/bracket
 
 # Make the binary executable
-chmod +x /usr/local/bin/bracket-cli
+chmod +x /usr/local/bin/bracket
 
 # Verify installation
 if command -v bracket >/dev/null 2>&1; then
