@@ -28,6 +28,11 @@ jobs:
           toolchain: stable
           override: true
 
+      # Install cross-compilation toolchain for Linux arm64 builds
+      - name: Install required dependencies for arm64 (Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
       # Linux and macOS - Bash Shell
       - name: Install target for architecture (Linux and macOS)
         if: matrix.os != 'windows-latest'
