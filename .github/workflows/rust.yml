@@ -38,6 +38,7 @@ jobs:
           rustup target add x86_64-unknown-linux-gnu
         elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
           rustup target add aarch64-unknown-linux-gnu
+          rustup target add x86_64-apple-darwin
         fi
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           rustup target add x86_64-pc-windows-msvc
