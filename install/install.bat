@@ -10,7 +10,7 @@ for /f "tokens=*" %%i in ('wmic os get osarchitecture') do set ARCH=%%i
 
 rem Determine the appropriate binary to download
 if %ARCH%==64-bit (
-    set FILE=bracket-cli-windows-amd64.exe
+    set FILE=windows-latest-x86_64-bracket-cli.exe
 ) else (
     echo Unsupported architecture: %ARCH%
     exit /b 1
