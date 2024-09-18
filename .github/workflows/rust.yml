@@ -29,67 +29,71 @@ jobs:
         toolchain: stable
         override: true
 
-    - name: Sort out directories
-      run: cd main
-
-    - name: Install target for architecture
+    # Linux and macOS - Bash Shell
+    - name: Install target for architecture (Linux and macOS)
+      if: matrix.os != 'windows-latest'
       run: |
-        if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        if [ "${{ matrix.arch }}" == "x86_64" ]; then
           rustup target add x86_64-unknown-linux-gnu
           rustup target add x86_64-apple-darwin
-        elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+        elif [ "${{ matrix.arch }}" == "arm64" ]; then
           rustup target add aarch64-unknown-linux-gnu
-          fi
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          rustup target add x86_64-pc-windows-msvc
         fi
+
+    # Windows - PowerShell Shell
+    - name: Install target for architecture (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        if ($env:Matrix_Arch -eq "x86_64") {
+          rustup target add x86_64-pc-windows-msvc
+        }
 
     - name: Build
       run: |
-        cd main &&
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        cd main
+        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          if [ "${{ matrix.arch }}" == "x86_64" ]; then
             cargo build --release --target x86_64-unknown-linux-gnu
-          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+          elif [ "${{ matrix.arch }}" == "arm64" ]; then
             cargo build --release --target aarch64-unknown-linux-gnu
           fi
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          if [ "${{ matrix.arch }}" == "x86_64" ]; then
             cargo build --release --target x86_64-apple-darwin
-          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+          elif [ "${{ matrix.arch }}" == "arm64" ]; then
             cargo build --release --target aarch64-apple-darwin
           fi
-        elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+          if ($env:Matrix_Arch -eq "x86_64") {
             cargo build --release --target x86_64-pc-windows-msvc
-          fi
+          }
         fi
 
     - name: Rename and upload the binary
       run: |
         # Define output binary names based on OS and architecture
-        cd main &&
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        cd main
+        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          if [ "${{ matrix.arch }}" == "x86_64" ]; then
             mv target/x86_64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-amd64
             echo "Binary built for Linux x86_64"
-          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+          elif [ "${{ matrix.arch }}" == "arm64" ]; then
             mv target/aarch64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-arm64
             echo "Binary built for Linux arm64"
           fi
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          if [ "${{ matrix.arch }}" == "x86_64" ]; then
             mv target/x86_64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-amd64
             echo "Binary built for macOS x86_64"
-          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+          elif [ "${{ matrix.arch }}" == "arm64" ]; then
             mv target/aarch64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-arm64
             echo "Binary built for macOS arm64"
           fi
-        elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+        elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+          if ($env:Matrix_Arch -eq "x86_64") {
             mv target/x86_64-pc-windows-msvc/release/bracket.exe main/target/release/bracket-cli-windows-amd64.exe
             echo "Binary built for Windows x86_64"
-          fi
+          }
         fi
 
     - name: Upload artifact
