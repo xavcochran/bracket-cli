@@ -88,6 +88,7 @@ jobs:
         run: |
           # Define output binary names based on OS and architecture
           cd main
+          ls target
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             if [ "${{ matrix.arch }}" == "x86_64" ]; then
               mv target/x86_64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-amd64
