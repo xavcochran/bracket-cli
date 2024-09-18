@@ -1,13 +1,13 @@
 # Overview
 
-The Cookly CLI tool helps to automate the process of creating infrastucture, connecting to and provisioning EC2 instances, and connecting to databases to run queries.
+The Bracket CLI tool helps to automate the process of creating infrastucture, connecting to and provisioning EC2 instances, and connecting to databases to run queries.
 
 ---
 
 ## Installation
 
  
-### Run the following in your terminal to install the cookly-cli
+### Run the following in your terminal to install the bracket-cli
 **For public (MAC/LINUX)**
 ```bash
 curl -sSL https://raw.githubusercontent.com/yourusername/bracket-aws-helper/install.sh | bash

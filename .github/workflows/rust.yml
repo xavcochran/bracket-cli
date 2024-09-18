@@ -2,16 +2,15 @@ name: Build and Upload Binaries
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -20,99 +19,106 @@ jobs:
         arch: [x86_64, arm64]
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
 
-    # Linux and macOS - Bash Shell
-    - name: Install target for architecture (Linux and macOS)
-      if: matrix.os != 'windows-latest'
-      shell: bash
-      run: |
-        if [ "${{ matrix.arch }}" == "x86_64" ]; then
-          rustup target add x86_64-unknown-linux-gnu
-          rustup target add x86_64-apple-darwin
-        elif [ "${{ matrix.arch }}" == "arm64" ]; then
-          rustup target add aarch64-unknown-linux-gnu
-        fi
-
-    # Windows - PowerShell Shell
-    - name: Install target for architecture (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        if ($env:Matrix_Arch -eq "x86_64") {
-          rustup target add x86_64-pc-windows-msvc
-        }
-
-    - name: Build ubuntu or mac
-      if: matrix.os != 'windows-latest'
-      shell: bash
-      run: |
-        cd main
-        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+      # Linux and macOS - Bash Shell
+      - name: Install target for architecture (Linux and macOS)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
           if [ "${{ matrix.arch }}" == "x86_64" ]; then
-            cargo build --release --target x86_64-unknown-linux-gnu
+            rustup target add x86_64-unknown-linux-gnu
+            rustup target add x86_64-apple-darwin
           elif [ "${{ matrix.arch }}" == "arm64" ]; then
-            cargo build --release --target aarch64-unknown-linux-gnu
+            rustup target add aarch64-unknown-linux-gnu
           fi
-        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-          if [ "${{ matrix.arch }}" == "x86_64" ]; then
-            cargo build --release --target x86_64-apple-darwin
-          elif [ "${{ matrix.arch }}" == "arm64" ]; then
-            cargo build --release --target aarch64-apple-darwin
-          fi
-        fi
-        
-    
-    - name: Build windows
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        cd main
-        if ($env:Matrix_Arch -eq "x86_64") {
-          cargo build --release --target x86_64-pc-windows-msvc
-        }
 
-    - name: Rename and upload the binary
-      run: |
-        # Define output binary names based on OS and architecture
-        cd main
-        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-          if [ "${{ matrix.arch }}" == "x86_64" ]; then
-            mv target/x86_64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-amd64
-            echo "Binary built for Linux x86_64"
-          elif [ "${{ matrix.arch }}" == "arm64" ]; then
-            mv target/aarch64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-arm64
-            echo "Binary built for Linux arm64"
-          fi
-        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-          if [ "${{ matrix.arch }}" == "x86_64" ]; then
-            mv target/x86_64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-amd64
-            echo "Binary built for macOS x86_64"
-          elif [ "${{ matrix.arch }}" == "arm64" ]; then
-            mv target/aarch64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-arm64
-            echo "Binary built for macOS arm64"
-          fi
-        elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+      # Windows - PowerShell Shell
+      - name: Install target for architecture (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
           if ($env:Matrix_Arch -eq "x86_64") {
-            mv target/x86_64-pc-windows-msvc/release/bracket.exe main/target/release/bracket-cli-windows-amd64.exe
-            echo "Binary built for Windows x86_64"
+            rustup target add x86_64-pc-windows-msvc
           }
-        fi
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${{ matrix.os }}-${{ matrix.arch }}-bracket-cli
-        path: |
-          main/target/release/bracket-cli-linux-amd64
-          main/target/release/bracket-cli-linux-arm64
-          main/target/release/bracket-cli-macos-amd64
-          main/target/release/bracket-cli-macos-arm64
-          main/target/release/bracket-cli-windows-amd64.exe
+      - name: Build ubuntu or mac
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          cd main
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            if [ "${{ matrix.arch }}" == "x86_64" ]; then
+              cargo build --release --target x86_64-unknown-linux-gnu
+            elif [ "${{ matrix.arch }}" == "arm64" ]; then
+              cargo build --release --target aarch64-unknown-linux-gnu
+            fi
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            if [ "${{ matrix.arch }}" == "x86_64" ]; then
+              cargo build --release --target x86_64-apple-darwin
+            elif [ "${{ matrix.arch }}" == "arm64" ]; then
+              cargo build --release --target aarch64-apple-darwin
+            fi
+          fi
+
+      - name: Build windows
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          cd main
+          if ($env:Matrix_Arch -eq "x86_64") {
+            cargo build --release --target x86_64-pc-windows-msvc
+          }
+
+      - name: Rename and upload the binary for ubuntu and mac
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          # Define output binary names based on OS and architecture
+          cd main
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            if [ "${{ matrix.arch }}" == "x86_64" ]; then
+              mv target/x86_64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-amd64
+              echo "Binary built for Linux x86_64"
+            elif [ "${{ matrix.arch }}" == "arm64" ]; then
+              mv target/aarch64-unknown-linux-gnu/release/bracket main/target/release/bracket-cli-linux-arm64
+              echo "Binary built for Linux arm64"
+            fi
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            if [ "${{ matrix.arch }}" == "x86_64" ]; then
+              mv target/x86_64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-amd64
+              echo "Binary built for macOS x86_64"
+            elif [ "${{ matrix.arch }}" == "arm64" ]; then
+              mv target/aarch64-apple-darwin/release/bracket main/target/release/bracket-cli-macos-arm64
+              echo "Binary built for macOS arm64"
+            fi
+          fi
+
+      - name: Rename and upload the binary for windows
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Define output binary names based on OS and architecture
+          cd main
+          if ($env:Matrix_Arch -eq "x86_64") {
+              mv target/x86_64-pc-windows-msvc/release/bracket.exe main/target/release/bracket-cli-windows-amd64.exe
+              echo "Binary built for Windows x86_64"
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-bracket-cli
+          path: |
+            main/target/release/bracket-cli-linux-amd64
+            main/target/release/bracket-cli-linux-arm64
+            main/target/release/bracket-cli-macos-amd64
+            main/target/release/bracket-cli-macos-arm64
+            main/target/release/bracket-cli-windows-amd64.exe

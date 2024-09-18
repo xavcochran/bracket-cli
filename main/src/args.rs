@@ -12,7 +12,7 @@ pub struct EC2connector {
 
 #[derive(Debug, Subcommand)]
 pub enum EntityType {
-    // /// Updates the cookly cli 
+    // /// Updates the bracket cli 
     // Update,
 
     /// Connects to existing EC2. Automatically starts one if none are running.
