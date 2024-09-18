@@ -32,6 +32,7 @@ jobs:
     # Linux and macOS - Bash Shell
     - name: Install target for architecture (Linux and macOS)
       if: matrix.os != 'windows-latest'
+      shell: bash
       run: |
         if [ "${{ matrix.arch }}" == "x86_64" ]; then
           rustup target add x86_64-unknown-linux-gnu
@@ -43,12 +44,15 @@ jobs:
     # Windows - PowerShell Shell
     - name: Install target for architecture (Windows)
       if: matrix.os == 'windows-latest'
+      shell: pwsh
       run: |
         if ($env:Matrix_Arch -eq "x86_64") {
           rustup target add x86_64-pc-windows-msvc
         }
 
-    - name: Build
+    - name: Build ubuntu or mac
+      if: matrix.os != 'windows-latest'
+      shell: bash
       run: |
         cd main
         if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
@@ -63,11 +67,15 @@ jobs:
           elif [ "${{ matrix.arch }}" == "arm64" ]; then
             cargo build --release --target aarch64-apple-darwin
           fi
-        elif [ "${{ matrix.os }}" == "windows-latest" ]; then
-          if ($env:Matrix_Arch -eq "x86_64") {
-            cargo build --release --target x86_64-pc-windows-msvc
-          }
-        fi
+    
+    - name: Build windows
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        cd main
+        if ($env:Matrix_Arch -eq "x86_64") {
+          cargo build --release --target x86_64-pc-windows-msvc
+        }
 
     - name: Rename and upload the binary
       run: |
