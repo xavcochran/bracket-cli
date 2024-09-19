@@ -28,8 +28,8 @@ jobs:
           toolchain: stable
           override: true
 
-      # Install cross-compilation toolchain for Linux arm64 builds
-      - name: Install required dependencies for arm64 (Linux)
+       # Install necessary tools for cross-compiling on arm64 (Ubuntu)
+      - name: Install dependencies for arm64 (Linux only)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
           sudo apt-get update
@@ -38,6 +38,13 @@ jobs:
             libc6-dev-arm64-cross \
             binutils-aarch64-linux-gnu \
             libgcc-9-dev-arm64-cross
+
+      - name: Set environment variables for arm64 cross-compilation
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: |
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+          export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
 
       # Linux and macOS - Bash Shell
       - name: Install target for architecture (Linux and macOS)
