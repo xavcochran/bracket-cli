@@ -8,6 +8,21 @@ VERSION="latest" # or specify a version like "v1.0.0"
 OS=$(uname -s)
 ARCH=$(uname -m)
 
+INSTALL_DIR="$HOME/.local/bin"
+mkdir -p "$INSTALL_DIR"
+
+# Ensure that $HOME/.local/bin is in the PATH
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    echo "Adding $HOME/.local/bin to PATH"
+    export PATH="$HOME/.local/bin:$PATH"
+    # Add it to .bashrc or .zshrc for persistence
+    if [[ "$SHELL" == *"bash"* ]]; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+    elif [[ "$SHELL" == *"zsh"* ]]; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
+    fi
+fi
+
 # Determine the appropriate binary to download
 if [[ "$OS" == "Linux" ]]; then
     if [[ "$ARCH" == "x86_64" ]]; then
@@ -34,10 +49,10 @@ fi
 
 # Download the binary
 URL="https://github.com/$REPO/releases/download/$VERSION/$FILE"
-curl -L $URL -o /usr/local/bin/bracket
+curl -L $URL -o "$INSTALL_DIR/bracket"
 
 # Make the binary executable
-chmod +x /usr/local/bin/bracket
+chmod +x "$INSTALL_DIR/bracket"
 
 # Verify installation
 if command -v bracket >/dev/null 2>&1; then

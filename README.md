@@ -31,8 +31,3 @@ bracket setup github
 5. Scroll to the bottom of the page and click `generate token`
 6. Copy the generated token and paste it in the terminal 
 7. Follow the rest of the instructions regarding adding your username and email.
-
-
-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
-
-
