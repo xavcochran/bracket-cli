@@ -64,8 +64,7 @@ else
     echo "Git is already installed. Skipping installation."
 fi
 
-echo "What is your prefered editor of choice? Enter 1 for VSCode or 2 for IntelliJ: "
-read editor_choice
+read -p "What is your preferred editor of choice? Enter 1 for VSCode or 2 for IntelliJ: " editor_choice
 
 if [[ "$editor_choice" == "1" ]]; then
     if ! command -v code &> /dev/null
