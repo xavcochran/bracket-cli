@@ -1,8 +1,17 @@
 #!/bin/bash
 
-# Set your repository and version
+# Set your repository
 REPO="bracketengineering/bracket-cli"
-VERSION="latest" # or specify a version like "v1.0.0"
+
+# Fetch the latest release version from GitHub API
+VERSION=$(curl --silent "https://api.github.com/repos/$REPO/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
+
+if [[ -z "$VERSION" ]]; then
+    echo "Failed to fetch the latest version. Please check your internet connection or the repository."
+    exit 1
+fi
+
+echo "Latest version is $VERSION"
 
 # Detect the operating system
 OS=$(uname -s)
@@ -49,6 +58,7 @@ fi
 
 # Download the binary
 URL="https://github.com/$REPO/releases/download/$VERSION/$FILE"
+echo "Downloading from $URL"
 curl -L $URL -o "$INSTALL_DIR/bracket"
 
 # Make the binary executable
@@ -61,7 +71,6 @@ else
     echo "Installation failed."
     exit 1
 fi
-
 
 echo "Installing dependencies..."
 if ! command -v git &> /dev/null
@@ -90,10 +99,10 @@ if [[ "$editor_choice" == "1" ]]; then
             sudo apt update
             sudo apt install software-properties-common apt-transport-https wget
             wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | sudo apt-key add -
-            if [ $ARCH == "x86_64" ]
+            if [[ $ARCH == "x86_64" ]]
             then
                 sudo add-apt-repository "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main"
-            elif [ $ARCH == "arm64" ]
+            elif [[ $ARCH == "arm64" ]]
             then
                 sudo add-apt-repository "deb [arch=arm64] https://packages.microsoft.com/repos/vscode stable main"
             fi
