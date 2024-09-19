@@ -10,7 +10,7 @@ for /f "tokens=*" %%i in ('wmic os get osarchitecture') do set ARCH=%%i
 
 rem Determine the appropriate binary to download
 if %ARCH%==64-bit (
-    set FILE=windows-latest-x86_64-bracket-cli.exe
+    set FILE=bracket-cli-windows-amd64.exe
 ) else (
     echo Unsupported architecture: %ARCH%
     exit /b 1
@@ -21,7 +21,7 @@ set URL=https://github.com/%REPO%/releases/download/%VERSION%/%FILE%
 powershell -Command "Invoke-WebRequest -Uri %URL% -OutFile %TEMP%\bracket.exe"
 
 rem Move the binary to a directory in PATH
-move /Y %TEMP%\bracket-cli.exe C:\Windows\System32\bracket.exe
+move /Y %TEMP%\bracket.exe C:\Windows\System32\bracket.exe
 
 rem Verify installation
 where bracket >nul 2>&1

@@ -8,27 +8,21 @@ VERSION="latest" # or specify a version like "v1.0.0"
 OS=$(uname -s)
 ARCH=$(uname -m)
 
-LINUX="ubuntu-latest"
-MACOS="macos-latest"
-
-AMD64="x86_64"
-ARM64="arm64"
-
 # Determine the appropriate binary to download
 if [[ "$OS" == "Linux" ]]; then
     if [[ "$ARCH" == "x86_64" ]]; then
-        FILE=$LINUX + $AMD64
+        FILE="bracket-cli-linux-amd64"
     elif [[ "$ARCH" == "arm64" ]]; then
-        FILE=$LINUX + $ARM64
+        FILE="bracket-cli-linux-arm64"
     else
         echo "Unsupported architecture: $ARCH"
         exit 1
     fi
 elif [[ "$OS" == "Darwin" ]]; then
     if [[ "$ARCH" == "x86_64" ]]; then
-        FILE=$MACOS + $AMD64
+        FILE="bracket-cli-macos-amd64"
     elif [[ "$ARCH" == "arm64" ]]; then
-        FILE=$MACOS + $ARM64
+        FILE="bracket-cli-macos-arm64"
     else
         echo "Unsupported architecture: $ARCH"
         exit 1

@@ -28,7 +28,7 @@ jobs:
           toolchain: stable
           override: true
 
-       # Install necessary tools for cross-compiling on arm64 (Ubuntu)
+      # Install necessary tools for cross-compiling on arm64 (Ubuntu)
       - name: Install dependencies for arm64 (Linux only)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
@@ -80,7 +80,7 @@ jobs:
             if [ "${{ matrix.arch }}" == "x86_64" ]; then
               cargo build --release --target x86_64-unknown-linux-gnu
             # elif [ "${{ matrix.arch }}" == "arm64" ]; then
-            # cargo build --release --target aarch64-unknown-linux-gnu
+            #   cargo build --release --target aarch64-unknown-linux-gnu
             fi
           elif [ "${{ matrix.os }}" == "macos-latest" ]; then
             if [ "${{ matrix.arch }}" == "x86_64" ]; then
@@ -109,13 +109,65 @@ jobs:
           echo "Listing target directory after build"
           ls -R target
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      # Create a GitHub release
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-bracket-cli
-          path: |
-            main/target/x86_64-unknown-linux-gnu/release/bracket
-            main/target/aarch64-unknown-linux-gnu/release/bracket
-            main/target/x86_64-apple-darwin/release/bracket
-            main/target/aarch64-apple-darwin/release/bracket
-            main/target/x86_64-pc-windows-msvc/release/bracket.exe
+          tag_name: ${{ github.sha }}
+          release_name: Release ${{ github.sha }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload release assets
+      - name: Upload Release Assets
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: main/target/x86_64-unknown-linux-gnu/release/bracket
+          asset_name: bracket-cli-linux-amd64
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Upload arm64 release asset
+      #   if: matrix.arch == 'arm64' && matrix.os == 'ubuntu-latest'
+      #   uses: actions/upload-release-asset@v1
+      #   with:
+      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+      #     asset_path: main/target/aarch64-unknown-linux-gnu/release/bracket
+      #     asset_name: bracket-cli-linux-arm64
+      #     asset_content_type: application/octet-stream
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload macOS x86_64 release asset
+        if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: main/target/x86_64-apple-darwin/release/bracket
+          asset_name: bracket-cli-macos-amd64
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload macOS arm64 release asset
+        if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: main/target/aarch64-apple-darwin/release/bracket
+          asset_name: bracket-cli-macos-arm64
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload windows release asset
+        if: matrix.os == 'windows-latest' && matrix.arch == 'x86_64'
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: main/target/x86_64-pc-windows-msvc/release/bracket.exe
+          asset_name: bracket-cli-windows-amd64.exe
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
