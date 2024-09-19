@@ -10,12 +10,12 @@ The Bracket CLI tool helps to automate the process of creating infrastucture, co
 ### Run the following in your terminal to install the bracket-cli
 **For public (MAC/LINUX)**
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bracket-aws-helper/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/bracketengineering/bracket-cli/refs/heads/main/install/install.sh | bash
 ```
 
 **For public (WINDOWS)**
 ```bash
-powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/yourusername/your-repo/main/install.bat -OutFile install.bat"
+powershell -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/bracketengineering/bracket-cli/refs/heads/main/install/install.bat -OutFile install.bat"
 install.bat
 ```
 

@@ -120,16 +120,20 @@ jobs:
               repo: context.repo.repo
             });
             const releaseExists = releases.some(release => release.tag_name === process.env.RELEASE_TAG);
-            core.setOutput("releaseExists", releaseExists);
+            return { releaseExists };
         env:
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
 
+      - name: Set release exists output
+        id: set_release_exists
+        run: echo "RELEASE_EXISTS=${{ steps.check_release.outputs.releaseExists }}" >> $GITHUB_ENV
+
       - name: Create GitHub Release
         id: create_release
-        if: steps.check_release.outputs.releaseExists == 'false'
+        if: steps.set_release_exists.outputs.RELEASE_EXISTS == 'false'
         uses: actions/create-release@v1
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ github.sha }}
           release_name: Release ${{ env.RELEASE_TAG }}
           draft: false
           prerelease: false
@@ -147,7 +151,16 @@ jobs:
           asset_content_type: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      # - name: Upload arm64 release asset
+      #   if: matrix.arch == 'arm64' && matrix.os == 'ubuntu-latest'
+      #   uses: actions/upload-release-asset@v1
+      #   with:
+      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+      #     asset_path: main/target/aarch64-unknown-linux-gnu/release/bracket
+      #     asset_name: bracket-cli-linux-arm64
+      #     asset_content_type: application/octet-stream
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload macOS x86_64 release asset
         if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
         uses: actions/upload-release-asset@v1
@@ -158,7 +171,6 @@ jobs:
           asset_content_type: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload macOS arm64 release asset
         if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
         uses: actions/upload-release-asset@v1
@@ -169,7 +181,6 @@ jobs:
           asset_content_type: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload windows release asset
         if: matrix.os == 'windows-latest' && matrix.arch == 'x86_64'
         uses: actions/upload-release-asset@v1
