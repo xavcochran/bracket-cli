@@ -46,3 +46,62 @@ else
     echo "Installation failed."
     exit 1
 fi
+
+
+echo "Installing dependencies..."
+if ! command -v code &> /dev/null
+then
+    echo "VS Code is not installed. Installing VS Code..."
+    if $OS == "Linux"
+    then
+        sudo apt update
+        sudo apt install software-properties-common apt-transport-https wget
+        wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | sudo apt-key add -
+        if [ $ARCH == "x86_64" ]
+        then
+            sudo add-apt-repository "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main"
+        elif [ $ARCH == "arm64" ]
+        then
+            sudo add-apt-repository "deb [arch=arm64] https://packages.microsoft.com/repos/vscode stable main"
+        fi
+        sudo apt update
+        sudo apt install code
+    elif $OS == "Darwin"
+    then
+        brew install --cask visual-studio-code
+    fi
+else
+    echo "VS Code is already installed. Skipping installation."
+fi
+if ! command -v git &> /dev/null
+then
+    echo "Git is not installed. Installing Git..."
+    if $OS == "Linux"
+    then
+        sudo apt update
+        sudo apt install git
+    elif $OS == "Darwin"
+    then
+        brew install git
+    fi
+else
+    echo "Git is already installed. Skipping installation."
+fi
+if ! command -v jetbrains-gateway &> /dev/null
+then
+    echo "JetBrains Gateway is not installed. Installing JetBrains Gateway..."
+    if $OS == "Linux"
+    then
+        sudo apt update
+        sudo apt install software-properties-common apt-transport-https wget
+        wget -qO - https://jetbrains.bintray.com/jetbrains.asc | sudo apt-key add -
+        echo "deb https://jetbrains.bintray.com/debian all main" | sudo tee /etc/apt/sources.list.d/jetbrains.list
+        sudo apt update
+        sudo apt install jetbrains-gateway
+    elif $OS == "Darwin"
+    then
+        brew install --cask jetbrains-gateway
+    fi
+else
+    echo "JetBrains Gateway is already installed. Skipping installation."
+fi
