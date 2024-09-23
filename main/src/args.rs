@@ -2,8 +2,15 @@ use clap::{Args, Parser, Subcommand};
 
 // pub mod args;
 
+pub mod version {
+    pub const VERSION: &str = "1.1.0";
+    pub const NAME: &str = "Bracket CLI";
+    pub const AUTHORS: &str = "Bracket Engineering";
+}
+use version::{VERSION, NAME, AUTHORS};
+
 #[derive(Debug, Parser)]
-#[clap(name = "AWS Connector", version = "1.0", author = "Your Name. <")]
+#[clap(name = NAME, version = VERSION, author = AUTHORS)]
 
 pub struct EC2connector {
     #[clap(subcommand)]
@@ -24,11 +31,14 @@ pub enum EntityType {
     /// Closes the connection to the EC2 instance and shuts it down.
     Stop(StopCommand),
 
-    /// Setup your credentials to be able to connect to our EC2s and use them effectively.
-    Setup(SetupCommand),
+    /// Config your credentials to be able to connect to our EC2s and use them effectively.
+    Config(ConfigCommand),
 
     /// Lists resources that are available to you.
     List(ListCommand),
+
+    /// Updates the bracket cli
+    Update,
 }
 
 #[derive(Debug, Args)]
@@ -72,29 +82,29 @@ pub struct CreateCopyOfCommand {
 }
 
 #[derive(Debug, Args)]
-pub struct SetupCommand {
+pub struct ConfigCommand {
     #[clap(subcommand)]
-    pub command: SetupSubCommand,
+    pub command: ConfigSubCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum SetupSubCommand {
-    /// Setupures your AWS credentials and other options needed.
+pub enum ConfigSubCommand {
+    /// Configures your AWS credentials and other options needed.
     Aws,
 
-    /// Setupures your Git credentials and other options needed.
+    /// Configures your Git credentials and other options needed.
     Github,
 }
 
 #[derive(Debug, Args)]
-pub struct GithubSetup {
+pub struct GithubConfig {
     #[clap(subcommand)]
-    pub command: GithubSetupCommand,
+    pub command: GithubConfigCommand,
 }
 
 
 #[derive(Debug, Subcommand)]
-pub enum GithubSetupCommand {
+pub enum GithubConfigCommand {
     PATToken(PATTokenCommand),
     Email(EmailCommand),
     UserName(UserNameCommand),

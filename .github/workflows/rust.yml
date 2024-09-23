@@ -110,33 +110,11 @@ jobs:
           echo "Listing target directory after build"
           ls -R target
 
-      - name: Check if release exists
-        id: check_release
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { data: releases } = await github.repos.listReleases({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            const releaseExists = releases.some(release => release.tag_name === process.env.RELEASE_TAG);
-            return { releaseExists };
-        env:
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
-
-      - name: Set release exists output
-        id: set_release_exists
-        run: echo "RELEASE_EXISTS=${{ steps.check_release.outputs.releaseExists }}" >> $GITHUB_ENV
+    
 
       - name: Create GitHub Release
         id: create_release
-        if: steps.set_release_exists.outputs.RELEASE_EXISTS == 'false'
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.sha }}
-          release_name: Release ${{ env.RELEASE_TAG }}
-          draft: false
-          prerelease: false
+        uses: zendesk/action-create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

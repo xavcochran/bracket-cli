@@ -3,29 +3,25 @@ mod ec2;
 mod github;
 mod neptune;
 mod utils;
+mod config;
 
 use args::{
-    ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, SetupSubCommand, StopSubCommand,
+    ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, ConfigSubCommand, StopSubCommand,
 };
 use aws_config;
 use clap::Parser;
 use std::process::Command;
 
 use utils::AppError;
+use tokio;
 
-#[::tokio::main]
+
+#[tokio::main]
 async fn main() -> Result<(), AppError> {
-    let code_check = Command::new("bash")
-        .arg("-c")
-        .arg("code --version")
-        .output()
-        .map_err(|e| AppError::CommandFailed(format!("Failed to run 'code --version': {}", e)))?;
-
-    if !code_check.status.success() {
-        return Err(AppError::CommandFailed(
-            "'code' command is not available".to_string(),
-        ));
-    }
+    match config::config::check_for_new_version().await {
+        Ok(_) => {}
+        Err(e) => eprintln!("Failed to check for new version: {}", e),  
+    };
 
     let args = EC2connector::parse();
 
@@ -78,8 +74,8 @@ async fn main() -> Result<(), AppError> {
             }
         }
 
-        EntityType::Setup(config_command) => match config_command.command {
-            SetupSubCommand::Aws => {
+        EntityType::Config(config_command) => match config_command.command {
+            ConfigSubCommand::Aws => {
                 let command = "aws configure";
                 let child = Command::new("bash")
                     .arg("-c")
@@ -95,7 +91,7 @@ async fn main() -> Result<(), AppError> {
                     ));
                 }
             }
-            SetupSubCommand::Github => {
+            ConfigSubCommand::Github => {
                 github::setup::setup_github().await?;
             }
         },
@@ -111,6 +107,13 @@ async fn main() -> Result<(), AppError> {
                 github::setup::list_github_config().await?;
             }
         },
+
+        EntityType::Update => {
+            match config::config::cli_update().await {
+                Ok(_) => {}
+                Err(e) => eprintln!("Failed to update: {}", e),
+            }
+        }
     }
 
     Ok(())
