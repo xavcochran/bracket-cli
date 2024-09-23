@@ -32,6 +32,7 @@ jobs:
           tag_schema: semantic
 
   build:
+    needs: create_release
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -139,7 +140,7 @@ jobs:
         uses: actions/upload-release-asset@v1
         if: matrix.arch == 'x86_64' && matrix.os == 'ubuntu-latest'
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: main/target/x86_64-unknown-linux-gnu/release/bracket
           asset_name: bracket-cli-linux-amd64
           asset_content_type: application/octet-stream
@@ -149,7 +150,7 @@ jobs:
       #   if: matrix.arch == 'arm64' && matrix.os == 'ubuntu-latest'
       #   uses: actions/upload-release-asset@v1
       #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+      #     upload_url: ${{ needs.create_release.outputs.upload_url }}
       #     asset_path: main/target/aarch64-unknown-linux-gnu/release/bracket
       #     asset_name: bracket-cli-linux-arm64
       #     asset_content_type: application/octet-stream
@@ -159,7 +160,7 @@ jobs:
         if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: main/target/x86_64-apple-darwin/release/bracket
           asset_name: bracket-cli-macos-amd64
           asset_content_type: application/octet-stream
@@ -169,7 +170,7 @@ jobs:
         if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: main/target/aarch64-apple-darwin/release/bracket
           asset_name: bracket-cli-macos-arm64
           asset_content_type: application/octet-stream
@@ -179,7 +180,7 @@ jobs:
         if: matrix.os == 'windows-latest' && matrix.arch == 'x86_64'
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: main/target/x86_64-pc-windows-msvc/release/bracket.exe
           asset_name: bracket-cli-windows-amd64.exe
           asset_content_type: application/octet-stream
