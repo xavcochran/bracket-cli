@@ -27,7 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           auto_increment_type: patch
-          prerelease: false
+          prerelease: true
           draft: false
 
   # build:
