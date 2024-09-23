@@ -27,8 +27,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           auto_increment_type: patch
-          prerelease: true
+          prerelease: false
           draft: false
+          tag_schema: semantic
 
   # build:
   #   runs-on: ${{ matrix.os }}
