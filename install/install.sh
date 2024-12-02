@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set your repository
-REPO="bracketengineering/bracket-cli"
+REPO="xavcochran/bracket-cli"
 
 # Fetch the latest release version from GitHub API
 VERSION=$(curl --silent "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
