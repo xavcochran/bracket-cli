@@ -9,6 +9,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
+
 pub fn config_cli() -> Result<(), AppError> {
     let ide_selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Select your IDE")
@@ -248,6 +249,73 @@ pub async fn cli_update() -> Result<(), AppError> {
             "\n{}\n",
             "You are running the latest version of the Bracket CLI. ✅".bold()
         ); // prints ✅
+    }
+
+    Ok(())
+}
+
+
+pub async fn config_golang (version: Version) -> Result<(), AppError> {
+    let user_os = std::env::consts::OS;
+
+    let go_exists = Command::new("go")
+        .arg("version")
+        .output()
+        .map_err(|e| {
+            AppError::CommandFailed(format!("Failed to run 'go version': {}", e))
+        })?;
+
+    match go_exists.status.success() {
+        true => {
+            println!("Go is installed");
+        }
+        false => {
+            match user_os {
+                "macos" => {
+                    let output = Command::new("sh")
+                        .arg("-c")
+                        .arg("brew install go")
+                        .output()
+                        .map_err(|e| {
+                            AppError::CommandFailed(format!("Failed to install Go on macOS: {}", e))
+                        })?;
+
+                    if !output.status.success() {
+                        return Err(AppError::CommandFailed(format!(
+                            "Failed to install Go on macOS: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        )));
+                    }
+                }
+                "linux" | "al2023" => {
+                    let output = Command::new("sh")
+                        .arg("-c")
+                        .arg("yum install golang-go | y")
+                        .output()
+                        .map_err(|e| {
+                            AppError::CommandFailed(format!("Failed to install Go on Linux: {}", e))
+                        })?;
+
+                    if !output.status.success() {
+                        return Err(AppError::CommandFailed(format!(
+                            "Failed to install Go on Linux: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        )));
+                    }
+                }
+                "windows" => {
+                    return Err(AppError::CommandFailed(
+                        "Go is not installed, please go to 'https://go.dev/doc/install' to install Go for windows".to_string(),
+                    ));
+                }
+                _ => {
+                    return Err(AppError::CommandFailed(format!(
+                        "Go is not installed and we don't have instructions for installing it on {}",
+                        user_os
+                    )))
+                }
+            }
+        }
     }
 
     Ok(())
