@@ -3,7 +3,7 @@ use clap::{Args, Parser, Subcommand};
 // pub mod args;
 
 pub mod version {
-    pub const VERSION: &str = "1.1.1";
+    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
     pub const NAME: &str = "Bracket CLI";
     pub const AUTHORS: &str = "Bracket Engineering";
 }
