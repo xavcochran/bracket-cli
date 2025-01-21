@@ -39,6 +39,9 @@ pub enum EntityType {
 
     /// Updates the bracket cli
     Update,
+
+    /// App runner commands
+    AppRunner(AppRunnerCommand),
 }
 
 #[derive(Debug, Args)]
@@ -171,3 +174,20 @@ pub enum ListSubCommand {
     Github,
 }
 
+
+#[derive(Debug, Args)]
+pub struct AppRunnerCommand {
+    #[clap(subcommand)]
+    pub command: AppRunnerSubCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AppRunnerSubCommand {
+    /// Redeploys the app runner.
+    Redeploy(RedeployCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct RedeployCommand {
+    pub app_runner_name: String,
+}

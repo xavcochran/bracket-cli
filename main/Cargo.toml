@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aws-config = "1.1.1"
-aws-sdk-ec2 = "1.12.0"
-aws-sdk-ec2instanceconnect = "1.9.0"
-aws-sdk-neptune = "1.10.0"
-aws-sdk-cloudwatch = "1.10.0"
-aws-smithy-types = "1.1.1"
+aws-config = "1.5.14"
+aws-sdk-ec2 = "1.103.0"
+aws-sdk-ec2instanceconnect = "1.54.0"
+aws-sdk-neptune = "1.56.0"
+aws-sdk-cloudwatch = "1.60.0"
+aws-smithy-types = "1.2.12"
+aws-sdk-apprunner = "1.55.0"
 clap = { version = "4.4.12", features = ["derive"] }
 tokio = { version = "1.35.1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
