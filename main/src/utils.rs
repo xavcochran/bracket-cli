@@ -50,6 +50,8 @@ pub enum AppError {
     CommandFailed(String),
     ConfigurationError(String),
     Other(String),
+    NotFound(String),
+    AwsSdk(String),
 }
 
 impl fmt::Display for AppError {
@@ -59,6 +61,8 @@ impl fmt::Display for AppError {
             AppError::CommandFailed(cmd) => write!(f, "Command failed: {}", cmd),
             AppError::ConfigurationError(msg) => write!(f, "Configuration error: {}", msg),
             AppError::Other(msg) => write!(f, "Error: {}", msg),
+            AppError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            AppError::AwsSdk(msg) => write!(f, "AWS SDK error: {}", msg),
         }
     }
 }

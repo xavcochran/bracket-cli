@@ -1,31 +1,37 @@
+mod app_runner;
 mod args;
+mod config;
 mod ec2;
 mod github;
 mod neptune;
 mod utils;
-mod config;
 
 use args::{
-    ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, ConfigSubCommand, StopSubCommand,
+    ConfigSubCommand, ConnectSubCommand, CreateSubCommand, EC2connector, EntityType, StopSubCommand,
 };
 use aws_config;
 use clap::Parser;
 use std::process::Command;
 
-use utils::AppError;
 use tokio;
-
+use utils::AppError;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     match config::config::check_for_new_version().await {
         Ok(_) => {}
-        Err(e) => eprintln!("Failed to check for new version: {}", e),  
+        Err(e) => eprintln!("Failed to check for new version: {}", e),
     };
 
     let args = EC2connector::parse();
 
     match args.entity_type {
+        EntityType::AppRunner(app_runner_command) => match app_runner_command.command {
+            args::AppRunnerSubCommand::Redeploy(cmd) => {
+                app_runner::redeploy::redeploy_app_runner(cmd).await?;
+            }
+        },
+
         EntityType::Connect(connect_command) => {
             if !is_configured()? {
                 return Err(AppError::ConfigurationError(
@@ -108,12 +114,10 @@ async fn main() -> Result<(), AppError> {
             }
         },
 
-        EntityType::Update => {
-            match config::config::cli_update().await {
-                Ok(_) => {}
-                Err(e) => eprintln!("Failed to update: {}", e),
-            }
-        }
+        EntityType::Update => match config::config::cli_update().await {
+            Ok(_) => {}
+            Err(e) => eprintln!("Failed to update: {}", e),
+        },
     }
 
     Ok(())
