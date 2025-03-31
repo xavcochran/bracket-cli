@@ -14,7 +14,7 @@ use crate::args;
 use crate::utils::get_instance_info;
 use crate::utils::AppError;
 
-pub async fn ec2_connect(ec2_connect_command: args::Ec2ConnectCommand) -> Result<(), AppError> {
+pub async fn    ec2_connect(ec2_connect_command: args::Ec2ConnectCommand) -> Result<(), AppError> {
     // run ssh keygen command
     let file_name = "key_rsa"; // replace with your desired file name
     let home_dir = dirs::home_dir().expect("Could not get home directory");
@@ -255,9 +255,11 @@ pub async fn ec2_connect(ec2_connect_command: args::Ec2ConnectCommand) -> Result
             }
 
             let command = format!(
-                "code --folder-uri vscode-remote://ssh-remote+{}/home/ec2-user/",
+                "cursor --folder-uri vscode-remote://ssh-remote+{}/home/ec2-user/",
                 host_name
             );
+
+            println!("Connecting to instance with command: {}", command);
 
             let _output = Command::new("bash")
                 .arg("-c")
@@ -290,14 +292,23 @@ async fn connect_to_instance(instance_id: String, ssh_public_key: String) -> Res
     let config = aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await;
     let client = InstanceConnectClient::new(&config);
 
-    client
+    match client
         .send_ssh_public_key()
         .instance_id(&instance_id)
         .ssh_public_key(&ssh_public_key)
         .instance_os_user("ec2-user")
         .send()
         .await
-        .expect("Could not connect to instance. Please try again!");
-
-    Ok(())
+    {
+        Ok(_) => {
+            println!("Successfully pushed SSH key to instance");
+            Ok(())
+        }
+        Err(e) => {
+            Err(AppError::CommandFailed(format!(
+                "Failed to push SSH key to instance: {}",
+                e
+            )))
+        }
+    }
 }

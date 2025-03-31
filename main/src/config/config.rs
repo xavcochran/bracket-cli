@@ -27,7 +27,7 @@ pub fn config_cli() -> Result<(), AppError> {
             //check what os is running
             //check vscode is installed
             //download vscode cli for that os
-            let vscode_exists = Command::new("code")
+            let vscode_exists = Command::new("cursor")
                 .arg("--version")
                 .output()
                 .map_err(|e| {

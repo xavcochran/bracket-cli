@@ -18,10 +18,10 @@ use utils::AppError;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
-    match config::config::check_for_new_version().await {
-        Ok(_) => {}
-        Err(e) => eprintln!("Failed to check for new version: {}", e),
-    };
+    // match config::config::check_for_new_version().await {
+    //     Ok(_) => {}
+    //     Err(e) => eprintln!("Failed to check for new version: {}", e),
+    // };
 
     let args = EC2connector::parse();
 
